@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="paper_bg">#FAF7F0</color>
+    <color name="paper_surface">#FFFDF9</color>
+    <color name="paper_surface_variant">#F3EFE6</color>
+    <color name="paper_border">#E2DBD0</color>
+    <color name="paper_text_primary">#2D2A28</color>
+    <color name="paper_text_secondary">#7A746E</color>
+    <color name="paper_accent">#8C5338</color>
+    <color name="paper_accent_light">#EADCCF</color>
+    <color name="paper_divider">#E9E3D8</color>
+    <color name="paper_badge_h1">#8C5338</color>
+    <color name="paper_badge_h2">#6B645C</color>
+    <color name="paper_badge_h3">#9E968D</color>
+</resources>

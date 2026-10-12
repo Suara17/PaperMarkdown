@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:background="@drawable/bg_btn_icon">
+
+    <!-- 典雅层级小圆点 -->
+    <View
+        android:id="@+id/view_bullet"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginEnd="12dp" />
+
+    <!-- 目录标题文字 -->
+    <TextView
+        android:id="@+id/tv_heading_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/paper_text_primary"
+        android:textSize="15sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+</LinearLayout>

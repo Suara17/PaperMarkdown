@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">素笺 Markdown</string>
+    <string name="select_folder">选择目录</string>
+    <string name="current_folder">当前目录：%1$s</string>
+    <string name="untitled_doc">无标题文档.md</string>
+    <string name="mode_reading">阅读模式</string>
+    <string name="mode_editing">编辑模式</string>
+    <string name="outline_title">文档大纲</string>
+    <string name="no_headings">此文档暂无标题标记</string>
+    <string name="file_list_title">文档列表</string>
+    <string name="no_files">该目录下暂无 Markdown 文件</string>
+    <string name="save_success">已保存</string>
+    <string name="new_file">新建笔记</string>
+</resources>

@@ -1,0 +1,14 @@
+# 敏感与签名文件（绝不提交）
+*.keystore
+*.idsig
+*.jks
+*.p12
+
+# Java class 与编译产物
+*.class
+build/
+gen/
+bin/
+
+# SDK 构建工具（体积大，按需另行获取）
+*.jar
