@@ -62,6 +62,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String KEY_CURRENT_FILE = "current_file";
     private static final String KEY_SAF_TREE_URI = "saf_tree_uri";
     private static final String KEY_DARK_MODE = "key_dark_mode";
+    private static final String KEY_STATS_ENABLED = "key_stats_enabled";
 
     // 控件：阅读与沉浸浮动菜单
     private View rootLayout;
@@ -70,6 +71,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private LinearLayout appBar;
     private TextView tvTitle;
     private TextView tvSubtitle;
+    private TextView btnToggleStats;
     private FrameLayout wheelMenu;
     private TextView tvWheelCenter;
     private View btnFilesDrawer;
@@ -149,6 +151,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     // 阅读统计：时长与次数
     private static final String PREF_STATS_PREFIX = "stats_";
+    private boolean isStatsEnabled = true;
     private String currentDocKey = null;
     private long docSessionStartTime = 0;
     private android.os.Handler statsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -176,7 +179,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         // 读取日间/夜间偏好并应用
         SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         isDarkMode = sp.getBoolean(KEY_DARK_MODE, false);
+        isStatsEnabled = sp.getBoolean(KEY_STATS_ENABLED, true);
         applyTheme(isDarkMode);
+        updateStatsButtonUi();
 
         // 默认先展示欢迎文档，确保界面初次打开绝非空白
         showWelcomeDoc();
@@ -191,6 +196,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         appBar = findViewById(R.id.app_bar);
         tvTitle = findViewById(R.id.tv_title);
         tvSubtitle = findViewById(R.id.tv_subtitle);
+        btnToggleStats = findViewById(R.id.btn_toggle_stats);
         wheelMenu = findViewById(R.id.wheel_menu);
         tvWheelCenter = findViewById(R.id.tv_wheel_center);
 
@@ -486,6 +492,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvPanelOutlineTitle.setTextColor(colorTextPrimary);
 
         updateTtsUi();
+        updateStatsButtonUi();
         syncWebViewTheme();
         fileAdapter.notifyDataSetChanged();
         outlineAdapter.notifyDataSetChanged();
@@ -781,6 +788,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 saveCurrentFile(true);
             }
         });
+
+        // 统计开关
+        if (btnToggleStats != null) {
+            btnToggleStats.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleReadingStats();
+                }
+            });
+        }
 
         // 遮罩点击
         maskOverlay.setOnClickListener(new View.OnClickListener() {
@@ -1496,6 +1513,25 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     // --- 阅读统计持久化核心逻辑 ---
 
+    private void toggleReadingStats() {
+        isStatsEnabled = !isStatsEnabled;
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putBoolean(KEY_STATS_ENABLED, isStatsEnabled)
+                .apply();
+        updateStatsButtonUi();
+        updateReadingStatsUi();
+        Toast.makeText(this, isStatsEnabled ? "已开启右上角阅读统计" : "已关闭右上角阅读统计", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateStatsButtonUi() {
+        if (btnToggleStats != null) {
+            btnToggleStats.setText(isStatsEnabled ? "统计: 开" : "统计: 关");
+            btnToggleStats.setTextColor(isStatsEnabled
+                    ? (isDarkMode ? Color.parseColor("#D48B68") : Color.parseColor("#8C5338"))
+                    : (isDarkMode ? Color.parseColor("#8C857C") : Color.parseColor("#7A746E")));
+        }
+    }
+
     private void switchReadingDocument(String newDocKey) {
         if (newDocKey == null || newDocKey.trim().isEmpty()) return;
         if (currentDocKey != null) {
@@ -1527,8 +1563,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void updateReadingStatsUi() {
-        if (tvReadingStats == null || isEditMode || currentDocKey == null) {
-            if (tvReadingStats != null && isEditMode) {
+        if (tvReadingStats == null || isEditMode || currentDocKey == null || !isStatsEnabled) {
+            if (tvReadingStats != null) {
                 tvReadingStats.setVisibility(View.GONE);
             }
             return;

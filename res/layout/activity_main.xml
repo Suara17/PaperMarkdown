@@ -152,6 +152,20 @@
                 android:textSize="11sp"
                 android:singleLine="true" />
         </LinearLayout>
+
+        <!-- 顶栏右侧：统计开关切换按钮 -->
+        <TextView
+            android:id="@+id/btn_toggle_stats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:text="统计: 开"
+            android:textColor="@color/paper_accent"
+            android:textSize="12sp"
+            android:background="@drawable/bg_quick_key" />
     </LinearLayout>
 
     <!-- 右侧圆形悬浮轮盘菜单 (小巧精致版 170dp) -->
