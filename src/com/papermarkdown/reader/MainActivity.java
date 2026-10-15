@@ -66,7 +66,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     // 控件：阅读与沉浸浮动菜单
     private View rootLayout;
     private WebView webView;
-private LinearLayout appBar;
+    private TextView tvReadingStats;
+    private LinearLayout appBar;
     private TextView tvTitle;
     private TextView tvSubtitle;
     private FrameLayout wheelMenu;
@@ -146,6 +147,19 @@ private LinearLayout appBar;
 
     private Typeface paperTypeface = null;
 
+    // 阅读统计：时长与次数
+    private static final String PREF_STATS_PREFIX = "stats_";
+    private String currentDocKey = null;
+    private long docSessionStartTime = 0;
+    private android.os.Handler statsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable statsTickerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateReadingStatsUi();
+            statsHandler.postDelayed(this, 1000);
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -173,6 +187,7 @@ private LinearLayout appBar;
     private void initViews() {
         rootLayout = findViewById(R.id.root_layout);
         webView = findViewById(R.id.web_view);
+        tvReadingStats = findViewById(R.id.tv_reading_stats);
         appBar = findViewById(R.id.app_bar);
         tvTitle = findViewById(R.id.tv_title);
         tvSubtitle = findViewById(R.id.tv_subtitle);
@@ -384,6 +399,15 @@ private LinearLayout appBar;
         if (window != null) {
             window.setStatusBarColor(colorBg);
             window.setNavigationBarColor(colorBg);
+        }
+
+        if (tvReadingStats != null) {
+            tvReadingStats.setTextColor(colorTextSecondary);
+            GradientDrawable statsBg = new GradientDrawable();
+            statsBg.setColor(dark ? Color.parseColor("#262421") : Color.parseColor("#EFEBE2"));
+            statsBg.setCornerRadius(12 * getResources().getDisplayMetrics().density);
+            statsBg.setStroke((int) (1 * getResources().getDisplayMetrics().density), colorBorder);
+            tvReadingStats.setBackground(statsBg);
         }
 
         // 2. 根布局与编辑器
@@ -858,6 +882,7 @@ private LinearLayout appBar;
     }
 
     private void showWelcomeDoc() {
+        switchReadingDocument("welcome_doc");
         currentFileName = "欢迎使用素笺.md";
         updateTitleViews(currentFileName, "轻巧优雅的纸质阅读体验");
 
@@ -1117,6 +1142,8 @@ private LinearLayout appBar;
     }
 
     private void loadFile(FileItem item) {
+        String docKey = (item.uri != null) ? item.uri.toString() : (item.path != null ? item.path : item.name);
+        switchReadingDocument(docKey);
         currentFileName = item.name;
         updateTitleViews(currentFileName, item.getFormattedDate() + " · " + item.getFormattedSize());
 
@@ -1191,6 +1218,9 @@ private LinearLayout appBar;
         isEditMode = !isEditMode;
         if (isEditMode) {
             hideControlsMenu(false);
+            if (tvReadingStats != null) {
+                tvReadingStats.setVisibility(View.GONE);
+            }
             etContent.setText(currentMarkdownText);
             etContent.setSelection(etContent.getText().length());
             layoutEdit.setVisibility(View.VISIBLE);
@@ -1202,6 +1232,7 @@ private LinearLayout appBar;
             renderInWebView(currentMarkdownText);
             layoutEdit.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
+            updateReadingStatsUi();
             updateOutlineList();
             Toast.makeText(this, "已切回沉浸阅读", Toast.LENGTH_SHORT).show();
         }
@@ -1436,12 +1467,106 @@ private LinearLayout appBar;
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (currentDocKey != null) {
+            docSessionStartTime = System.currentTimeMillis();
+            statsHandler.removeCallbacks(statsTickerRunnable);
+            statsHandler.post(statsTickerRunnable);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        persistCurrentSessionTime();
+        statsHandler.removeCallbacks(statsTickerRunnable);
+    }
+
+    @Override
     protected void onDestroy() {
+        persistCurrentSessionTime();
+        statsHandler.removeCallbacks(statsTickerRunnable);
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
         super.onDestroy();
+    }
+
+    // --- 阅读统计持久化核心逻辑 ---
+
+    private void switchReadingDocument(String newDocKey) {
+        if (newDocKey == null || newDocKey.trim().isEmpty()) return;
+        if (currentDocKey != null) {
+            persistCurrentSessionTime();
+        }
+        currentDocKey = newDocKey;
+        docSessionStartTime = System.currentTimeMillis();
+
+        // 阅读次数递增 (+1) 并持久化
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String countKey = PREF_STATS_PREFIX + "count_" + currentDocKey;
+        int currentCount = sp.getInt(countKey, 0) + 1;
+        sp.edit().putInt(countKey, currentCount).apply();
+
+        statsHandler.removeCallbacks(statsTickerRunnable);
+        statsHandler.post(statsTickerRunnable);
+    }
+
+    private void persistCurrentSessionTime() {
+        if (currentDocKey == null || docSessionStartTime <= 0) return;
+        long elapsedSec = (System.currentTimeMillis() - docSessionStartTime) / 1000;
+        if (elapsedSec > 0) {
+            SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            String timeKey = PREF_STATS_PREFIX + "time_" + currentDocKey;
+            long totalTimeSec = sp.getLong(timeKey, 0) + elapsedSec;
+            sp.edit().putLong(timeKey, totalTimeSec).apply();
+            docSessionStartTime = System.currentTimeMillis();
+        }
+    }
+
+    private void updateReadingStatsUi() {
+        if (tvReadingStats == null || isEditMode || currentDocKey == null) {
+            if (tvReadingStats != null && isEditMode) {
+                tvReadingStats.setVisibility(View.GONE);
+            }
+            return;
+        }
+
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String timeKey = PREF_STATS_PREFIX + "time_" + currentDocKey;
+        String countKey = PREF_STATS_PREFIX + "count_" + currentDocKey;
+
+        long persistedSec = sp.getLong(timeKey, 0);
+        int readCount = sp.getInt(countKey, 1);
+
+        long currentSessionSec = 0;
+        if (docSessionStartTime > 0) {
+            currentSessionSec = (System.currentTimeMillis() - docSessionStartTime) / 1000;
+        }
+        long totalSec = persistedSec + currentSessionSec;
+
+        String formattedTime = formatReadingDuration(totalSec);
+        String statsText = "读过 " + readCount + " 次 · " + formattedTime;
+        tvReadingStats.setText(statsText);
+        if (tvReadingStats.getVisibility() != View.VISIBLE) {
+            tvReadingStats.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private String formatReadingDuration(long totalSec) {
+        if (totalSec < 60) {
+            return totalSec + "秒";
+        } else if (totalSec < 3600) {
+            long min = totalSec / 60;
+            long sec = totalSec % 60;
+            return min + "分" + (sec > 0 ? sec + "秒" : "");
+        } else {
+            long hr = totalSec / 3600;
+            long min = (totalSec % 3600) / 60;
+            return hr + "小时" + (min > 0 ? min + "分" : "");
+        }
     }
 
     // --- 适配器实现 ---

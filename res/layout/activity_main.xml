@@ -12,6 +12,24 @@
         android:layout_height="match_parent"
         android:background="@color/paper_bg" />
 
+    <!-- 页面右上角常驻阅读统计 (小字，素雅纸墨风格) -->
+    <TextView
+        android:id="@+id/tv_reading_stats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text=""
+        android:textColor="@color/paper_text_secondary"
+        android:textSize="11sp"
+        android:letterSpacing="0.02"
+        android:visibility="gone" />
+
     <!-- 全屏编辑器容器 (编辑模式时显示) -->
     <LinearLayout
         android:id="@+id/layout_edit"
