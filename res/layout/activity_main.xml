@@ -136,225 +136,191 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 底部悬浮控制胶囊菜单 (点击屏幕中间时滑出，单手随手触达) -->
-    <LinearLayout
-        android:id="@+id/bottom_controls"
-        android:layout_width="wrap_content"
-        android:layout_height="54dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="32dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
-        android:background="@drawable/bg_paper_capsule"
-        android:elevation="8dp"
+    <!-- 右侧圆形悬浮轮盘菜单 (小巧精致版 170dp) -->
+    <FrameLayout
+        android:id="@+id/wheel_menu"
+        android:layout_width="170dp"
+        android:layout_height="170dp"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_wheel_circle"
+        android:elevation="10dp"
         android:visibility="gone">
 
-        <!-- 目录 -->
+        <!-- 中心装饰微标：素笺 -->
+        <TextView
+            android:id="@+id/tv_wheel_center"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="素笺"
+            android:textColor="@color/paper_text_secondary"
+            android:textSize="11.5sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+
+        <!-- 1. 顶部偏上 (12点偏中): 目录 -->
         <LinearLayout
             android:id="@+id/btn_files_drawer"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="5dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_folder_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_folder" />
 
             <TextView
                 android:id="@+id/tv_drawer_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="目录"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="13sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <View
-            android:id="@+id/div1"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
-            android:background="@color/paper_border" />
-
-        <!-- 大纲 -->
+        <!-- 2. 右上方 (2点方向): 大纲 -->
         <LinearLayout
             android:id="@+id/btn_outline"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="25dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_outline_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_toc" />
 
             <TextView
                 android:id="@+id/tv_outline_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="大纲"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="13sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <View
-            android:id="@+id/div2"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
-            android:background="@color/paper_border" />
-
-        <!-- 朗读 (TTS) -->
+        <!-- 3. 右下方 (4点方向): 朗读 -->
         <LinearLayout
             android:id="@+id/btn_tts"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginBottom="25dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_tts_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_speaker" />
 
             <TextView
                 android:id="@+id/tv_tts_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="朗读"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="13sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <View
-            android:id="@+id/div3"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
-            android:background="@color/paper_border" />
-
-        <!-- 日夜间模式切换 -->
+        <!-- 4. 正底部 (6点方向): 日夜间 -->
         <LinearLayout
             android:id="@+id/btn_theme_toggle"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="5dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_theme_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_mode_night" />
 
             <TextView
                 android:id="@+id/tv_theme_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="夜间"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="13sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <View
-            android:id="@+id/div4"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
-            android:background="@color/paper_border" />
-
-        <!-- 编辑 -->
+        <!-- 5. 左下方 (8点方向): 编辑 -->
         <LinearLayout
             android:id="@+id/btn_toggle_mode"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|start"
+            android:layout_marginBottom="25dp"
+            android:layout_marginStart="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_edit_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_edit" />
 
             <TextView
                 android:id="@+id/tv_edit_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="编辑"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="13sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
-        <View
-            android:id="@+id/div5"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
-            android:background="@color/paper_border" />
-
-        <!-- 保存 -->
+        <!-- 6. 左上方 (10点方向): 保存 -->
         <LinearLayout
             android:id="@+id/btn_save"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp"
-            android:orientation="horizontal"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_gravity="top|start"
+            android:layout_marginTop="25dp"
+            android:layout_marginStart="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
                 android:id="@+id/iv_save_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_save" />
 
             <TextView
                 android:id="@+id/tv_save_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="保存"
                 android:textColor="@color/paper_accent"
-                android:textSize="13sp"
+                android:textSize="9sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-    </LinearLayout>
+    </FrameLayout>
 
     <!-- 侧拉遮罩层 (半透明遮罩) -->
     <View
@@ -364,10 +330,10 @@
         android:background="#66000000"
         android:visibility="gone" />
 
-    <!-- 侧滑：文稿目录面板 -->
+    <!-- 左侧滑出：文稿目录面板 -->
     <LinearLayout
         android:id="@+id/panel_file_list"
-        android:layout_width="310dp"
+        android:layout_width="320dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@drawable/bg_drawer"
@@ -375,13 +341,14 @@
         android:visibility="gone"
         android:elevation="14dp">
 
+        <!-- 抽屉顶部标题栏 -->
         <LinearLayout
             android:id="@+id/panel_file_header"
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="16dp"
+            android:paddingStart="18dp"
             android:paddingEnd="12dp"
             android:background="@color/paper_surface_variant">
 
@@ -399,20 +366,21 @@
                 android:id="@+id/btn_change_folder"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
                 android:text="切换目录"
                 android:textColor="@color/paper_accent"
                 android:textSize="12sp"
+                android:textStyle="bold"
                 android:background="@drawable/bg_quick_key" />
 
             <ImageView
                 android:id="@+id/btn_new_file"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="6dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="8dp"
                 android:padding="6dp"
                 android:src="@drawable/ic_add"
                 android:background="@drawable/bg_btn_icon"
@@ -425,53 +393,49 @@
             android:layout_height="1dp"
             android:background="@color/paper_border" />
 
-        <!-- 返回上级目录入口 -->
+        <!-- 路径面包屑与返回上级条 -->
         <LinearLayout
-            android:id="@+id/btn_go_up"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="40dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:background="@color/paper_bg"
-            android:visibility="gone">
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:background="@color/paper_surface">
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_folder" />
+            <!-- 返回上一级轻按钮 -->
+            <LinearLayout
+                android:id="@+id/btn_go_up"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_quick_key"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_go_up_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="↑ 上级"
+                    android:textColor="@color/paper_accent"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tv_go_up_label"
-                android:layout_width="wrap_content"
+                android:id="@+id/tv_current_dir"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="↑ 返回上级"
-                android:textColor="@color/paper_accent"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                android:layout_weight="1"
+                android:textColor="@color/paper_text_secondary"
+                android:textSize="11.5sp"
+                android:singleLine="true"
+                android:ellipsize="middle" />
         </LinearLayout>
-
-        <View
-            android:id="@+id/div_drawer_1b"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/paper_border" />
-
-        <TextView
-            android:id="@+id/tv_current_dir"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:textColor="@color/paper_text_secondary"
-            android:textSize="11sp"
-            android:background="@color/paper_bg"
-            android:singleLine="true"
-            android:ellipsize="middle" />
 
         <View
             android:id="@+id/div_drawer_2"
@@ -479,12 +443,16 @@
             android:layout_height="1dp"
             android:background="@color/paper_border" />
 
+        <!-- 列表容器 -->
         <ListView
             android:id="@+id/list_files"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:padding="12dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="16dp"
             android:clipToPadding="false"
             android:divider="@null"
             android:dividerHeight="0dp"
@@ -496,19 +464,19 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:padding="32dp"
-            android:text="该目录下暂无 Markdown 文档"
+            android:text="🍃 该目录下暂无 Markdown 文档"
             android:textColor="@color/paper_text_secondary"
             android:textSize="13sp"
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 底部滑出：章节大纲面板 (TOC) -->
+    <!-- 右侧滑出：章节大纲面板 (TOC 右侧抽屉) -->
     <LinearLayout
         android:id="@+id/panel_outline"
-        android:layout_width="match_parent"
-        android:layout_height="400dp"
-        android:layout_gravity="bottom"
-        android:background="@drawable/bg_bottom_sheet"
+        android:layout_width="310dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="@drawable/bg_drawer_right"
         android:orientation="vertical"
         android:visibility="gone"
         android:elevation="16dp">
@@ -516,19 +484,20 @@
         <LinearLayout
             android:id="@+id/panel_outline_header"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
+            android:layout_height="56dp"
             android:gravity="center_vertical"
             android:paddingStart="18dp"
-            android:paddingEnd="12dp">
+            android:paddingEnd="12dp"
+            android:background="@color/paper_surface_variant">
 
             <TextView
                 android:id="@+id/tv_panel_outline_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="章节目录"
+                android:text="章节大纲"
                 android:textColor="@color/paper_text_primary"
-                android:textSize="16sp"
+                android:textSize="17sp"
                 android:textStyle="bold" />
 
             <ImageView

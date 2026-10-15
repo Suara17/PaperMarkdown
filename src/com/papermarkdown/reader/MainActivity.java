@@ -24,6 +24,8 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.TranslateAnimation;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -31,6 +33,7 @@ import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -63,21 +66,23 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     // 控件：阅读与沉浸浮动菜单
     private View rootLayout;
     private WebView webView;
-    private LinearLayout appBar;
+private LinearLayout appBar;
     private TextView tvTitle;
     private TextView tvSubtitle;
-    private LinearLayout bottomControls;
+    private FrameLayout wheelMenu;
+    private TextView tvWheelCenter;
     private View btnFilesDrawer;
     private View btnOutline;
     private View btnTts;
-    private ImageView ivTtsIcon;
-    private TextView tvTtsLabel;
     private View btnThemeToggle;
-    private ImageView ivThemeIcon;
-    private TextView tvThemeLabel;
     private View btnToggleMode;
     private View btnSave;
-
+    private ImageView ivThemeIcon;
+    private TextView tvThemeLabel;
+    private ImageView ivTtsIcon;
+    private TextView tvTtsLabel;
+    private TextView tvEditLabel;
+    private ImageView ivEditIcon;
     // 控件：编辑模式
     private LinearLayout layoutEdit;
     private View editTopBar;
@@ -109,7 +114,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     // 分割线控件集合
     private View div1, div2, div3, div4, div5;
-    private View divDrawer1, divDrawer1b, divDrawer2, divOutline1;
+    private View divDrawer1, divDrawer2, divOutline1;
 
     // 状态数据
     private boolean isDarkMode = false;
@@ -159,6 +164,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         isDarkMode = sp.getBoolean(KEY_DARK_MODE, false);
         applyTheme(isDarkMode);
 
+        // 默认先展示欢迎文档，确保界面初次打开绝非空白
+        showWelcomeDoc();
+
         loadLastLocationOrDefaults();
     }
 
@@ -168,7 +176,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         appBar = findViewById(R.id.app_bar);
         tvTitle = findViewById(R.id.tv_title);
         tvSubtitle = findViewById(R.id.tv_subtitle);
-        bottomControls = findViewById(R.id.bottom_controls);
+        wheelMenu = findViewById(R.id.wheel_menu);
+        tvWheelCenter = findViewById(R.id.tv_wheel_center);
 
         btnFilesDrawer = findViewById(R.id.btn_files_drawer);
         btnOutline = findViewById(R.id.btn_outline);
@@ -181,6 +190,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvThemeLabel = findViewById(R.id.tv_theme_label);
 
         btnToggleMode = findViewById(R.id.btn_toggle_mode);
+        ivEditIcon = findViewById(R.id.iv_edit_icon);
+        tvEditLabel = findViewById(R.id.tv_edit_label);
         btnSave = findViewById(R.id.btn_save);
 
         layoutEdit = findViewById(R.id.layout_edit);
@@ -210,13 +221,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvEmptyOutline = findViewById(R.id.tv_empty_outline);
         btnCloseOutline = findViewById(R.id.btn_close_outline);
 
-        div1 = findViewById(R.id.div1);
-        div2 = findViewById(R.id.div2);
-        div3 = findViewById(R.id.div3);
-        div4 = findViewById(R.id.div4);
-        div5 = findViewById(R.id.div5);
         divDrawer1 = findViewById(R.id.div_drawer_1);
-        divDrawer1b = findViewById(R.id.div_drawer_1b);
         divDrawer2 = findViewById(R.id.div_drawer_2);
         divOutline1 = findViewById(R.id.div_outline_1);
     }
@@ -257,6 +262,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 syncWebViewTheme();
                 if (!TextUtils.isEmpty(currentMarkdownText)) {
                     renderInWebView(currentMarkdownText);
+                } else {
+                    showWelcomeDoc();
                 }
             }
         });
@@ -290,13 +297,22 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         isControlsMenuVisible = true;
 
         appBar.setVisibility(View.VISIBLE);
-        bottomControls.setVisibility(View.VISIBLE);
+        wheelMenu.setVisibility(View.VISIBLE);
 
         if (animate) {
             Animation fadeIn = new AlphaAnimation(0f, 1f);
-            fadeIn.setDuration(220);
+            fadeIn.setDuration(200);
             appBar.startAnimation(fadeIn);
-            bottomControls.startAnimation(fadeIn);
+
+            // 右侧圆形轮盘从右侧滑出并微缩放弹出
+            Animation slideIn = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideIn.setDuration(240);
+            slideIn.setInterpolator(new DecelerateInterpolator());
+            wheelMenu.startAnimation(slideIn);
         }
     }
 
@@ -313,16 +329,33 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 @Override
                 public void onAnimationEnd(Animation animation) {
                     appBar.setVisibility(View.GONE);
-                    bottomControls.setVisibility(View.GONE);
                 }
                 @Override
                 public void onAnimationRepeat(Animation animation) {}
             });
             appBar.startAnimation(fadeOut);
-            bottomControls.startAnimation(fadeOut);
+
+            // 右侧圆形轮盘收回右侧
+            Animation slideOut = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideOut.setDuration(180);
+            slideOut.setAnimationListener(new Animation.AnimationListener() {
+                @Override
+                public void onAnimationStart(Animation animation) {}
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    wheelMenu.setVisibility(View.GONE);
+                }
+                @Override
+                public void onAnimationRepeat(Animation animation) {}
+            });
+            wheelMenu.startAnimation(slideOut);
         } else {
             appBar.setVisibility(View.GONE);
-            bottomControls.setVisibility(View.GONE);
+            wheelMenu.setVisibility(View.GONE);
         }
     }
 
@@ -369,21 +402,20 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvTitle.setTextColor(colorTextPrimary);
         tvSubtitle.setTextColor(colorTextSecondary);
 
-        // 4. 底部胶囊控件
-        GradientDrawable capsuleDrawable = new GradientDrawable();
-        capsuleDrawable.setColor(dark ? Color.parseColor("#262421") : Color.parseColor("#FAF7F0"));
-        capsuleDrawable.setCornerRadius(27 * getResources().getDisplayMetrics().density);
-        capsuleDrawable.setStroke((int) (1.5f * getResources().getDisplayMetrics().density), colorBorder);
-        bottomControls.setBackground(capsuleDrawable);
+        // 4. 右侧圆形悬浮轮盘控件
+        float density = getResources().getDisplayMetrics().density;
+        GradientDrawable wheelDrawable = new GradientDrawable();
+        wheelDrawable.setShape(GradientDrawable.OVAL);
+        wheelDrawable.setColor(dark ? Color.parseColor("#262421") : Color.parseColor("#FAF7F0"));
+        wheelDrawable.setStroke((int) (2f * density), colorBorder);
+        wheelMenu.setBackground(wheelDrawable);
+
+        if (tvWheelCenter != null) {
+            tvWheelCenter.setTextColor(colorTextSecondary);
+        }
 
         // 5. 分割线
-        div1.setBackgroundColor(colorBorder);
-        div2.setBackgroundColor(colorBorder);
-        div3.setBackgroundColor(colorBorder);
-        div4.setBackgroundColor(colorBorder);
-        div5.setBackgroundColor(colorBorder);
         divDrawer1.setBackgroundColor(colorBorder);
-        divDrawer1b.setBackgroundColor(colorBorder);
         divDrawer2.setBackgroundColor(colorBorder);
         divOutline1.setBackgroundColor(colorBorder);
 
@@ -407,26 +439,22 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         // 8. 抽屉面板
         GradientDrawable drawerDrawable = new GradientDrawable();
         drawerDrawable.setColor(colorBg);
-        drawerDrawable.setStroke((int) (1.5f * getResources().getDisplayMetrics().density), colorBorder);
+        drawerDrawable.setCornerRadii(new float[]{0, 0, 20 * density, 20 * density, 20 * density, 20 * density, 0, 0});
+        drawerDrawable.setStroke((int) (1.5f * density), colorBorder);
         panelFileList.setBackground(drawerDrawable);
 
         panelFileHeader.setBackgroundColor(colorSurfaceVariant);
         tvPanelFileTitle.setTextColor(colorTextPrimary);
-        tvCurrentDir.setBackgroundColor(colorBg);
         tvCurrentDir.setTextColor(colorTextSecondary);
         btnChangeFolder.setTextColor(colorAccent);
-        if (btnGoUp != null) {
-            btnGoUp.setBackgroundColor(colorBg);
-        }
         if (tvGoUpLabel != null) {
             tvGoUpLabel.setTextColor(colorAccent);
         }
 
-        // 9. 大纲面板
-        float density = getResources().getDisplayMetrics().density;
+        // 9. 大纲面板 (右侧抽屉)
         GradientDrawable outlineSheetDrawable = new GradientDrawable();
         outlineSheetDrawable.setColor(colorBg);
-        outlineSheetDrawable.setCornerRadii(new float[]{24 * density, 24 * density, 24 * density, 24 * density, 0, 0, 0, 0});
+        outlineSheetDrawable.setCornerRadii(new float[]{24 * density, 24 * density, 0, 0, 0, 0, 24 * density, 24 * density});
         outlineSheetDrawable.setStroke((int) (1.5f * density), colorBorder);
         panelOutline.setBackground(outlineSheetDrawable);
 
@@ -838,18 +866,19 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 + "欢迎使用 **素笺 Markdown** 阅读器！这是一款专为阅读与专注书写打造的素雅纸质风格应用。\n\n"
                 + "## ✨ 核心特色\n\n"
                 + "- **纸质书感**：采用柔和暖色纸面底色与古典排版，呵护双眼；\n"
-                + "- **日夜模式**：轻点底部菜单「夜间/日间」，一键切换温润宣纸与夜间墨色，暗光更舒适；\n"
-                + "- **语音朗读**：轻点底部菜单「朗读」，即可享受贴心的语音朗读，舒缓双眼；\n"
-                + "- **目录大纲**：轻点「大纲」图标，小圆点层级目录一览无余，平滑跳转；\n"
-                + "- **文件夹管理**：轻点「目录」图标，随意切换浏览文件夹中的 Markdown 文件；\n"
+                + "- **右侧圆形轮盘**：轻触屏幕中间唤出右侧圆形悬浮轮盘，单手即可轻松操作各项功能；\n"
+                + "- **右侧章节大纲**：轻点「大纲」从右侧滑出层级大纲抽屉，平滑跳转各级标题；\n"
+                + "- **日夜模式**：一键切换温润宣纸与夜间墨色，暗光更舒适；\n"
+                + "- **语音朗读**：轻点「朗读」享受贴心语音朗读，舒缓双眼；\n"
+                + "- **子目录浏览**：支持进入与返回任意层级子目录浏览 Markdown；\n"
                 + "- **即刻编辑**：随时在阅读与编辑模式间无缝切换，附带便捷 Markdown 输入栏。\n\n"
                 + "### 快捷操作指南\n\n"
-                + "1. **轻触屏幕中间**：随时唤起或收起底部控制浮条；\n"
-                + "2. 点击 **夜间/日间** 随心切换暗色与宣纸主题；\n"
-                + "3. 点击 **朗读** 启停有声朗读；\n"
-                + "4. 点击 **大纲** 纵览章节大纲（树状小圆点层级）并直达重点；\n"
-                + "5. 点击 **目录** 打开或切换本地文件夹；\n"
-                + "6. 点击 **编辑** 进入素雅信笺编辑模式。\n\n"
+                + "1. **轻触屏幕中间**：唤起或收起右侧悬浮圆形功能轮盘；\n"
+                + "2. 点击 **大纲**：右侧滑出章节目录抽屉，直达重点；\n"
+                + "3. 点击 **目录**：左侧滑出文稿与子目录浏览器；\n"
+                + "4. 点击 **朗读**：启停智能有声朗读；\n"
+                + "5. 点击 **夜间/日间**：随心切换暗色与宣纸主题；\n"
+                + "6. 点击 **编辑**：进入素雅信笺编辑模式。\n\n"
                 + "---\n\n"
                 + "祝您阅读与书写愉快！";
 
@@ -857,6 +886,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             renderInWebView(currentMarkdownText);
         }
         updateOutlineList();
+    }
+
+    private FileItem findFirstDocItem(List<FileItem> list) {
+        if (list == null) return null;
+        for (FileItem item : list) {
+            if (!item.isDirectory) {
+                return item;
+            }
+        }
+        return null;
     }
 
     private void updateTitleViews(String title, String subtitle) {
@@ -907,11 +946,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
         updateGoUpButton();
 
-        // 仅在确实是首次初始化（非目录导航）时自动打开第一篇，避免误触子目录时覆盖阅读页
-        if (!navFromDirectoryList && !fileItemList.isEmpty() && !fileItemList.get(0).isDirectory) {
-            loadFile(fileItemList.get(0));
-        } else if (fileItemList.isEmpty()) {
-            showWelcomeDoc();
+        // 仅在确实是首次初始化（非目录导航）时自动打开第一篇文档
+        if (!navFromDirectoryList) {
+            FileItem firstDoc = findFirstDocItem(fileItemList);
+            if (firstDoc != null) {
+                loadFile(firstDoc);
+            } else {
+                showWelcomeDoc();
+            }
         }
         navFromDirectoryList = false;
 
@@ -1017,10 +1059,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
         updateGoUpButton();
 
-        if (!navFromDirectoryList && !fileItemList.isEmpty() && !fileItemList.get(0).isDirectory) {
-            loadFile(fileItemList.get(0));
-        } else if (fileItemList.isEmpty() && !navFromDirectoryList) {
-            showWelcomeDoc();
+        if (!navFromDirectoryList) {
+            FileItem firstDoc = findFirstDocItem(fileItemList);
+            if (firstDoc != null) {
+                loadFile(firstDoc);
+            } else {
+                showWelcomeDoc();
+            }
         }
         navFromDirectoryList = false;
 
@@ -1110,6 +1155,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             renderInWebView(currentMarkdownText);
         }
         updateOutlineList();
+        if (fileAdapter != null) {
+            fileAdapter.notifyDataSetChanged();
+        }
     }
 
     private void renderInWebView(String markdown) {
@@ -1288,14 +1336,39 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             hideOutlinePanel();
             panelFileList.setVisibility(View.VISIBLE);
             maskOverlay.setVisibility(View.VISIBLE);
+            Animation slideIn = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, -1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideIn.setDuration(240);
+            slideIn.setInterpolator(new DecelerateInterpolator());
+            panelFileList.startAnimation(slideIn);
         }
     }
 
     private void hideFileListPanel() {
-        panelFileList.setVisibility(View.GONE);
-        if (panelOutline.getVisibility() != View.VISIBLE) {
-            maskOverlay.setVisibility(View.GONE);
-        }
+        if (panelFileList.getVisibility() != View.VISIBLE) return;
+        Animation slideOut = new TranslateAnimation(
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, -1.0f,
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 0f);
+        slideOut.setDuration(200);
+        slideOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                panelFileList.setVisibility(View.GONE);
+                if (panelOutline.getVisibility() != View.VISIBLE) {
+                    maskOverlay.setVisibility(View.GONE);
+                }
+            }
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        panelFileList.startAnimation(slideOut);
     }
 
     private void toggleOutlinePanel() {
@@ -1306,14 +1379,39 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             updateOutlineList();
             panelOutline.setVisibility(View.VISIBLE);
             maskOverlay.setVisibility(View.VISIBLE);
+            Animation slideIn = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideIn.setDuration(240);
+            slideIn.setInterpolator(new DecelerateInterpolator());
+            panelOutline.startAnimation(slideIn);
         }
     }
 
     private void hideOutlinePanel() {
-        panelOutline.setVisibility(View.GONE);
-        if (panelFileList.getVisibility() != View.VISIBLE) {
-            maskOverlay.setVisibility(View.GONE);
-        }
+        if (panelOutline.getVisibility() != View.VISIBLE) return;
+        Animation slideOut = new TranslateAnimation(
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 1.0f,
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 0f);
+        slideOut.setDuration(200);
+        slideOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                panelOutline.setVisibility(View.GONE);
+                if (panelFileList.getVisibility() != View.VISIBLE) {
+                    maskOverlay.setVisibility(View.GONE);
+                }
+            }
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        panelOutline.startAnimation(slideOut);
     }
 
     @Override
@@ -1362,26 +1460,54 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 convertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.item_file, parent, false);
             }
             FileItem item = fileItemList.get(position);
+            View root = convertView.findViewById(R.id.item_file_root);
             TextView tvName = convertView.findViewById(R.id.tv_file_name);
             TextView tvInfo = convertView.findViewById(R.id.tv_file_info);
-            TextView tvIcon = convertView.findViewById(R.id.tv_file_icon);
+            ImageView ivIcon = convertView.findViewById(R.id.iv_file_icon);
+            FrameLayout layoutBadge = convertView.findViewById(R.id.layout_icon_badge);
+            TextView tvCurrentBadge = convertView.findViewById(R.id.tv_current_badge);
 
             tvName.setText(item.name);
 
             int colorTextPrimary = isDarkMode ? Color.parseColor("#D6D0C7") : Color.parseColor("#2D2A28");
             int colorTextSecondary = isDarkMode ? Color.parseColor("#8C857C") : Color.parseColor("#7A746E");
             int colorAccent = isDarkMode ? Color.parseColor("#D48B68") : Color.parseColor("#8C5338");
+            int colorBorder = isDarkMode ? Color.parseColor("#383532") : Color.parseColor("#E0D8CB");
+            int colorSurface = isDarkMode ? Color.parseColor("#252320") : Color.parseColor("#FAF7F0");
+            int colorBadgeBg = isDarkMode ? Color.parseColor("#2F2C28") : Color.parseColor("#EFE9DD");
+
+            float density = getResources().getDisplayMetrics().density;
+            GradientDrawable cardBg = new GradientDrawable();
+            cardBg.setColor(colorSurface);
+            cardBg.setCornerRadius(10 * density);
+
+            boolean isCurrentReading = !item.isDirectory && item.name != null && item.name.equals(currentFileName);
+            if (isCurrentReading) {
+                cardBg.setStroke((int) (1.5f * density), colorAccent);
+                tvCurrentBadge.setVisibility(View.VISIBLE);
+                tvCurrentBadge.setTextColor(colorAccent);
+            } else {
+                cardBg.setStroke((int) (1f * density), colorBorder);
+                tvCurrentBadge.setVisibility(View.GONE);
+            }
+            root.setBackground(cardBg);
+
+            GradientDrawable badgeBg = new GradientDrawable();
+            badgeBg.setColor(colorBadgeBg);
+            badgeBg.setCornerRadius(8 * density);
+            layoutBadge.setBackground(badgeBg);
 
             if (item.isDirectory) {
-                tvIcon.setText("📁");
-                tvIcon.setTextColor(colorAccent);
-                tvInfo.setText(item.getFormattedDate() + "  " + item.getFormattedSize());
+                ivIcon.setImageResource(R.drawable.ic_folder);
+                ivIcon.setColorFilter(colorAccent);
+                tvInfo.setText(item.getFormattedDate() + "  ·  文件夹");
             } else {
-                tvIcon.setText("M↓");
-                tvIcon.setTextColor(colorAccent);
-                tvInfo.setText(item.getFormattedDate() + "  " + item.getFormattedSize());
+                ivIcon.setImageResource(R.drawable.ic_file_doc);
+                ivIcon.setColorFilter(colorAccent);
+                tvInfo.setText(item.getFormattedDate() + "  ·  " + item.getFormattedSize());
             }
-            tvName.setTextColor(colorTextPrimary);
+
+            tvName.setTextColor(isCurrentReading ? colorAccent : colorTextPrimary);
             tvInfo.setTextColor(colorTextSecondary);
 
             if (paperTypeface != null) {
