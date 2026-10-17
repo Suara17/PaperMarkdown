@@ -315,6 +315,22 @@
             }
         }
 
+        // 获取当前阅读位置附近的大纲标题索引（取视口顶部上方最近的一个标题）
+        function getCurrentHeadingIndex() {
+            const headings = document.querySelectorAll('[id^="heading-"]');
+            const scrollTop = window.scrollY;
+            let currentIndex = -1;
+            for (let i = 0; i < headings.length; i++) {
+                const top = headings[i].getBoundingClientRect().top + scrollTop;
+                if (top <= scrollTop + window.innerHeight * 0.5) {
+                    currentIndex = i;
+                } else {
+                    break;
+                }
+            }
+            return currentIndex;
+        }
+
         // 监听屏幕单指轻触中间区域 -> 唤起/收起菜单
         (function() {
             let touchStartX = 0, touchStartY = 0, touchStartTime = 0;

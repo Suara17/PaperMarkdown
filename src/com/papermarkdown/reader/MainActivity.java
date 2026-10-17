@@ -1503,6 +1503,54 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             slideIn.setDuration(240);
             slideIn.setInterpolator(new DecelerateInterpolator());
             panelOutline.startAnimation(slideIn);
+            // 打开大纲时，定位到当前阅读位置附近的大纲项
+            highlightCurrentOutlineItem();
+        }
+    }
+
+    // 根据当前阅读位置滚动大纲列表到对应标题附近
+    private void highlightCurrentOutlineItem() {
+        if (outlineItemList == null || outlineItemList.isEmpty()) return;
+        if (isEditMode) return;
+        try {
+            webView.evaluateJavascript("getCurrentHeadingIndex();", new android.webkit.ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String value) {
+                    if (value == null) return;
+                    // 去除引号得到数字索引（JS 返回形式可能是 "12" 或 null）
+                    String cleaned = value.replace("\"", "").trim();
+                    int headingIdx;
+                    try {
+                        headingIdx = Integer.parseInt(cleaned);
+                    } catch (NumberFormatException e) {
+                        return;
+                    }
+                    if (headingIdx < 0) return;
+
+                    // 在可见大纲列表中找出 index 与当前标题匹配或最接近的条目
+                    int targetPos = -1;
+                    int bestDelta = Integer.MAX_VALUE;
+                    for (int i = 0; i < outlineItemList.size(); i++) {
+                        OutlineItem item = outlineItemList.get(i);
+                        if (item.index >= headingIdx) {
+                            int delta = Math.abs(item.index - headingIdx);
+                            if (delta < bestDelta) {
+                                bestDelta = delta;
+                                targetPos = i;
+                            }
+                            break;
+                        }
+                    }
+                    if (targetPos < 0 && !outlineItemList.isEmpty()) {
+                        targetPos = outlineItemList.size() - 1;
+                    }
+                    if (targetPos >= 0) {
+                        listOutline.smoothScrollToPosition(targetPos);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
