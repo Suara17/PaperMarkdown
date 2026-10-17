@@ -1250,7 +1250,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         String textToParse = isEditMode ? etContent.getText().toString() : currentMarkdownText;
         List<OutlineItem> items = MarkdownParser.extractOutline(textToParse);
 
-        // 标记各个节点是否有子标题（后继层级更深）
+        // 标记各个节点是否有子标题（后继层级更深），且 h3 及之后的标题默认折叠
         for (int i = 0; i < items.size(); i++) {
             OutlineItem cur = items.get(i);
             boolean hasChildren = false;
@@ -1261,6 +1261,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 }
             }
             cur.hasChildren = hasChildren;
+            if (cur.level >= 3 && hasChildren) {
+                cur.isCollapsed = true; // h3 及更深层级默认折叠
+            }
         }
 
         allOutlineList.addAll(items);
