@@ -10,12 +10,23 @@
     android:paddingEnd="16dp"
     android:background="@drawable/bg_btn_icon">
 
+    <!-- 折叠/展开指示图标 (仅在有子标题层级时显示) -->
+    <TextView
+        android:id="@+id/tv_collapse_toggle"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:gravity="center"
+        android:text="▼"
+        android:textSize="9sp"
+        android:textColor="@color/paper_text_secondary"
+        android:visibility="gone" />
+
     <!-- 典雅层级小圆点 -->
     <View
         android:id="@+id/view_bullet"
         android:layout_width="8dp"
         android:layout_height="8dp"
-        android:layout_marginEnd="12dp" />
+        android:layout_marginEnd="10dp" />
 
     <!-- 目录标题文字 -->
     <TextView
@@ -27,5 +38,4 @@
         android:textSize="15sp"
         android:maxLines="2"
         android:ellipsize="end" />
-
 </LinearLayout>

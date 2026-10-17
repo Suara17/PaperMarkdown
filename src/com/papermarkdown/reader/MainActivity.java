@@ -143,6 +143,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private String pendingSpeechText = null;
 
     private final List<FileItem> fileItemList = new ArrayList<>();
+    private final List<OutlineItem> allOutlineList = new ArrayList<>();
     private final List<OutlineItem> outlineItemList = new ArrayList<>();
     private FileAdapter fileAdapter;
     private OutlineAdapter outlineAdapter;
@@ -930,6 +931,23 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         updateOutlineList();
     }
 
+    private FileItem findDocToOpen(List<FileItem> list) {
+        if (list == null || list.isEmpty()) return null;
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String lastFile = sp.getString(KEY_CURRENT_FILE, null);
+
+        if (lastFile != null && !lastFile.trim().isEmpty()) {
+            for (FileItem item : list) {
+                if (item.isDirectory) continue;
+                String key = (item.uri != null) ? item.uri.toString() : (item.path != null ? item.path : item.name);
+                if (lastFile.equals(key) || lastFile.equals(item.name) || (item.path != null && lastFile.equals(item.path))) {
+                    return item;
+                }
+            }
+        }
+        return findFirstDocItem(list);
+    }
+
     private FileItem findFirstDocItem(List<FileItem> list) {
         if (list == null) return null;
         for (FileItem item : list) {
@@ -988,11 +1006,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
         updateGoUpButton();
 
-        // 仅在确实是首次初始化（非目录导航）时自动打开第一篇文档
+        // 仅在确实是首次初始化（非目录导航）时自动恢复上次打开文档或打开第一篇文档
         if (!navFromDirectoryList) {
-            FileItem firstDoc = findFirstDocItem(fileItemList);
-            if (firstDoc != null) {
-                loadFile(firstDoc);
+            FileItem targetDoc = findDocToOpen(fileItemList);
+            if (targetDoc != null) {
+                loadFile(targetDoc);
             } else {
                 showWelcomeDoc();
             }
@@ -1101,10 +1119,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
         updateGoUpButton();
 
+        // 仅在确实是首次初始化（非目录导航）时自动恢复上次打开文档或打开第一篇文档
         if (!navFromDirectoryList) {
-            FileItem firstDoc = findFirstDocItem(fileItemList);
-            if (firstDoc != null) {
-                loadFile(firstDoc);
+            FileItem targetDoc = findDocToOpen(fileItemList);
+            if (targetDoc != null) {
+                loadFile(targetDoc);
             } else {
                 showWelcomeDoc();
             }
@@ -1202,6 +1221,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (fileAdapter != null) {
             fileAdapter.notifyDataSetChanged();
         }
+
+        // 持久化当前阅读的文档（本地文件存绝对路径，SAF存URI）
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(KEY_CURRENT_FILE, item.uri != null ? item.uri.toString() : (item.path != null ? item.path : item.name))
+                .apply();
     }
 
     private void renderInWebView(String markdown) {
@@ -1222,12 +1246,56 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void updateOutlineList() {
-        outlineItemList.clear();
+        allOutlineList.clear();
         String textToParse = isEditMode ? etContent.getText().toString() : currentMarkdownText;
         List<OutlineItem> items = MarkdownParser.extractOutline(textToParse);
-        outlineItemList.addAll(items);
-        outlineAdapter.notifyDataSetChanged();
-        tvEmptyOutline.setVisibility(outlineItemList.isEmpty() ? View.VISIBLE : View.GONE);
+
+        // 标记各个节点是否有子标题（后继层级更深）
+        for (int i = 0; i < items.size(); i++) {
+            OutlineItem cur = items.get(i);
+            boolean hasChildren = false;
+            if (i + 1 < items.size()) {
+                OutlineItem next = items.get(i + 1);
+                if (next.level > cur.level) {
+                    hasChildren = true;
+                }
+            }
+            cur.hasChildren = hasChildren;
+        }
+
+        allOutlineList.addAll(items);
+        rebuildVisibleOutlineList();
+    }
+
+    private void rebuildVisibleOutlineList() {
+        outlineItemList.clear();
+        int skipUntilLevel = -1; // 当遇到折叠的节点时，跳过其所有子层级
+
+        for (int i = 0; i < allOutlineList.size(); i++) {
+            OutlineItem item = allOutlineList.get(i);
+
+            if (skipUntilLevel != -1) {
+                if (item.level > skipUntilLevel) {
+                    continue; // 属于被折叠节点的子孙，跳过展示
+                } else {
+                    skipUntilLevel = -1; // 恢复
+                }
+            }
+
+            outlineItemList.add(item);
+
+            // h3 及更深层级（level >= 3）且用户点击折叠了，则折叠其子标题
+            if (item.level >= 3 && item.hasChildren && item.isCollapsed) {
+                skipUntilLevel = item.level;
+            }
+        }
+
+        if (outlineAdapter != null) {
+            outlineAdapter.notifyDataSetChanged();
+        }
+        if (tvEmptyOutline != null) {
+            tvEmptyOutline.setVisibility(allOutlineList.isEmpty() ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void toggleMode() {
@@ -1693,10 +1761,30 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 convertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.item_outline, parent, false);
             }
             OutlineItem item = outlineItemList.get(position);
+            TextView tvCollapse = convertView.findViewById(R.id.tv_collapse_toggle);
             View viewBullet = convertView.findViewById(R.id.view_bullet);
             TextView tvText = convertView.findViewById(R.id.tv_heading_text);
 
             float density = getResources().getDisplayMetrics().density;
+
+            // 折叠指示器：针对 h3 及更深层级且有子标题的节点
+            if (item.level >= 3 && item.hasChildren) {
+                tvCollapse.setVisibility(View.VISIBLE);
+                tvCollapse.setText(item.isCollapsed ? "▶" : "▼");
+                tvCollapse.setTextColor(isDarkMode ? Color.parseColor("#A8A095") : Color.parseColor("#7A746E"));
+                final OutlineItem currentOutline = item;
+                tvCollapse.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        currentOutline.isCollapsed = !currentOutline.isCollapsed;
+                        rebuildVisibleOutlineList();
+                    }
+                });
+            } else {
+                tvCollapse.setVisibility(View.GONE);
+                tvCollapse.setOnClickListener(null);
+            }
+
             GradientDrawable dot = new GradientDrawable();
             dot.setShape(GradientDrawable.OVAL);
 
