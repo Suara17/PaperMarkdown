@@ -1284,8 +1284,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
             outlineItemList.add(item);
 
-            // h3 及更深层级（level >= 3）且用户点击折叠了，则折叠其子标题
-            if (item.level >= 3 && item.hasChildren && item.isCollapsed) {
+            // h2 及更深层级（level >= 2）且用户点击折叠了，则折叠其子标题
+            if (item.level >= 2 && item.hasChildren && item.isCollapsed) {
                 skipUntilLevel = item.level;
             }
         }
@@ -1767,8 +1767,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
             float density = getResources().getDisplayMetrics().density;
 
-            // 折叠指示器：针对 h3 及更深层级且有子标题的节点
-            if (item.level >= 3 && item.hasChildren) {
+            // 折叠指示器：针对 h2 及更深层级且有子标题的节点
+            if (item.level >= 2 && item.hasChildren) {
                 tvCollapse.setVisibility(View.VISIBLE);
                 tvCollapse.setText(item.isCollapsed ? "▶" : "▼");
                 tvCollapse.setTextColor(isDarkMode ? Color.parseColor("#A8A095") : Color.parseColor("#7A746E"));
