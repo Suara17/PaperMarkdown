@@ -3,6 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+    <script>
+        // Array.prototype.at Polyfill (必须在 marked.min.js 之前执行，解决旧版 WebView 报 t.at is not a function)
+        if (!Array.prototype.at) {
+            Array.prototype.at = function(n) {
+                n = Math.trunc(n) || 0;
+                if (n < 0) n += this.length;
+                if (n < 0 || n >= this.length) return undefined;
+                return this[n];
+            };
+        }
+        if (!String.prototype.at) {
+            String.prototype.at = function(n) {
+                n = Math.trunc(n) || 0;
+                if (n < 0) n += this.length;
+                if (n < 0 || n >= this.length) return "";
+                return this.charAt(n);
+            };
+        }
+    </script>
     <style>
         :root {
             --bg-color: #FAF7F0;
