@@ -624,6 +624,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             etFolderSearch.setBackground(folderSearchBg);
             ivBookmarkIcon.setColorFilter(colorTextPrimary);
             ((ImageView) findViewById(R.id.btn_add_bookmark_top)).setColorFilter(colorAccent);
+            btnAddBookmark.setColorFilter(colorAccent);
             ((ImageView) findViewById(R.id.iv_search_icon)).setColorFilter(colorTextPrimary);
             ((ImageView) findViewById(R.id.iv_more_icon)).setColorFilter(colorTextPrimary);
             ((ImageView) findViewById(R.id.iv_outline_icon)).setColorFilter(colorTextPrimary);

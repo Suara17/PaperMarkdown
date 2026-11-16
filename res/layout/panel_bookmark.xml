@@ -36,7 +36,7 @@
             android:layout_width="34dp"
             android:layout_height="34dp"
             android:padding="6dp"
-            android:src="@drawable/ic_bookmark_add"
+            android:src="@drawable/ic_bookmark_plus"
             android:background="@drawable/bg_btn_icon"
             android:contentDescription="添加书签" />
 
