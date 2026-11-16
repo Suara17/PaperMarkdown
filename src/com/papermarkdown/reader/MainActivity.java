@@ -302,14 +302,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         viewBookmarkDot = findViewById(R.id.view_bookmark_dot);
         ivBookmarkIcon = findViewById(R.id.iv_bookmark_icon);
 
-        searchCard = findViewById(R.id.search_card);
+        searchCard = findViewById(R.id.layout_search_card);
         etSearch = findViewById(R.id.et_search);
         tvSearchCount = findViewById(R.id.tv_search_count);
         btnSearchUp = findViewById(R.id.btn_search_up);
         btnSearchDown = findViewById(R.id.btn_search_down);
         btnSearchClose = findViewById(R.id.btn_search_close);
 
-        panelBookmark = findViewById(R.id.panel_bookmark);
+        panelBookmark = findViewById(R.id.panel_bookmark_include);
         panelBookmarkHeader = findViewById(R.id.panel_bookmark_header);
         tvPanelBookmarkTitle = findViewById(R.id.tv_panel_bookmark_title);
         btnAddBookmark = findViewById(R.id.btn_add_bookmark);
