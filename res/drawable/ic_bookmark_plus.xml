@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 书签丝带外形，中间挖空一个加号（evenOdd 填充实现镂空） -->
+    <path
+        android:fillColor="@color/paper_accent"
+        android:fillType="evenOdd"
+        android:pathData="M6,5c0,-1.66 1.34,-3 3,-3h6c1.66,0 3,1.34 3,3v16.2c0,0.62 -0.68,1 -1.2,0.67L12,18.5l-4.8,3.37C6.68,22.2 6,21.82 6,21.2V5zM11,7.5v2.5H8.5v2H11v2.5h2V12h2.5v-2H13V7.5h-2z" />
+</vector>

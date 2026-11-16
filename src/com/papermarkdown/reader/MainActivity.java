@@ -160,6 +160,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private TextView tvEmptyFolderResults;
 
     // 书签数据
+    /** 全量书签（持久化的唯一数据源，跨文档） */
+    private final List<Bookmark> allBookmarks = new ArrayList<>();
+    /** 当前文档的书签（面板展示用） */
     private final List<Bookmark> bookmarks = new ArrayList<>();
     private BookmarkAdapter bookmarkAdapter;
     private final List<SearchResult> searchResults = new ArrayList<>();
@@ -1347,10 +1350,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 closeSearchCard();
             }
             loadBookmarks();
-            bookmarks.clear();
-            bookmarks.addAll(bookmarksOfDoc(currentDocKey));
-            bookmarkAdapter.notifyDataSetChanged();
-            updateBookmarkEmptyState();
+            refreshBookmarkList();
             tvPanelBookmarkTitle.setText("书签 · " + shortDocName());
             switchBookmarkTab(true);
             showPanel(panelBookmark, true);
@@ -1444,55 +1444,33 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     }
                     snippet = raw.substring(bar + 1).trim();
                 }
-                promptBookmarkTitle(offset, snippet);
+                saveNewBookmark(buildAutoBookmarkTitle(snippet), snippet, offset);
             }
         });
     }
 
-    private void promptBookmarkTitle(final int offsetPx, final String snippet) {
-        String defaultTitle;
+    /** 一键添加时自动生成书签名称：优先取所在段落文字，取不到则用时间 */
+    private String buildAutoBookmarkTitle(String snippet) {
         if (snippet == null || snippet.trim().isEmpty()) {
-            defaultTitle = "书签 · " + formatBookmarkTime(System.currentTimeMillis());
-        } else {
-            defaultTitle = snippet.length() > 18 ? snippet.substring(0, 18) + "…" : snippet;
+            return "书签 · " + formatBookmarkTime(System.currentTimeMillis());
         }
-
-        final EditText input = new EditText(this);
-        input.setText(defaultTitle);
-        input.setSelection(input.getText().length());
-        input.setSingleLine(true);
-        input.setPadding(48, 32, 48, 32);
-        input.setTextColor(textPrimaryColor());
-        if (paperTypeface != null) {
-            input.setTypeface(paperTypeface);
+        String title = snippet.trim();
+        // 去掉 Markdown 残留符号，避免标题难看
+        title = title.replaceAll("[#>*_`\\[\\]()!-]", " ").replaceAll("\\s+", " ").trim();
+        if (title.isEmpty()) {
+            return "书签 · " + formatBookmarkTime(System.currentTimeMillis());
         }
-
-        new AlertDialog.Builder(this)
-                .setTitle("添加书签")
-                .setMessage("把当前位置夹在纸上，随时翻回。")
-                .setView(input)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String title = input.getText().toString().trim();
-                        if (title.isEmpty()) {
-                            title = "未命名书签";
-                        }
-                        saveNewBookmark(title, snippet, offsetPx);
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        return title.length() > 16 ? title.substring(0, 16) + "…" : title;
     }
 
     private void saveNewBookmark(String title, String snippet, int offsetPx) {
         if (TextUtils.isEmpty(currentDocKey)) return;
         Bookmark bm = new Bookmark(currentDocKey, title, snippet, offsetPx, System.currentTimeMillis());
-        loadBookmarks();
-        bookmarks.add(0, bm);
+        loadBookmarks();          // 先同步磁盘上的全量书签，避免覆盖其它文档
+        allBookmarks.add(0, bm);
         persistBookmarks();
         refreshBookmarkList();
-        Toast.makeText(this, "已添加书签「" + title + "」", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "已加书签「" + title + "」", Toast.LENGTH_SHORT).show();
     }
 
     private void jumpToBookmark(final Bookmark bm) {
@@ -1562,7 +1540,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 .setPositiveButton("删除", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        bookmarks.remove(bm);
+                        allBookmarks.remove(bm);
                         persistBookmarks();
                         refreshBookmarkList();
                         Toast.makeText(MainActivity.this, "已删除书签", Toast.LENGTH_SHORT).show();
@@ -1584,7 +1562,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private List<Bookmark> bookmarksOfDoc(String docKey) {
         List<Bookmark> result = new ArrayList<>();
         if (docKey == null) return result;
-        for (Bookmark bm : bookmarks) {
+        for (Bookmark bm : allBookmarks) {
             if (docKey.equals(bm.docKey)) {
                 result.add(bm);
             }
@@ -1614,14 +1592,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         } catch (Exception e) {
             e.printStackTrace();
         }
-        bookmarks.clear();
-        bookmarks.addAll(loaded);
+        allBookmarks.clear();
+        allBookmarks.addAll(loaded);
+        refreshBookmarkList();
     }
 
     /** 将全部书签写回 SharedPreferences */
     private void persistBookmarks() {
         JSONArray arr = new JSONArray();
-        for (Bookmark bm : bookmarks) {
+        for (Bookmark bm : allBookmarks) {
             arr.put(bm.toJson());
         }
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
