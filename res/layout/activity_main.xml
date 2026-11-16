@@ -112,67 +112,11 @@
         </HorizontalScrollView>
     </LinearLayout>
 
-    <!-- 顶部纸质风格标题栏 (点击屏幕中间时显现，默认隐藏) -->
-    <LinearLayout
-        android:id="@+id/app_bar"
-        android:layout_width="match_parent"
-        android:layout_height="54dp"
-        android:layout_gravity="top"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:background="@color/paper_surface"
-        android:elevation="4dp"
-        android:visibility="gone">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="未命名文档"
-                android:textColor="@color/paper_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="middle" />
-
-            <TextView
-                android:id="@+id/tv_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="素笺纸质阅读"
-                android:textColor="@color/paper_text_secondary"
-                android:textSize="11sp"
-                android:singleLine="true" />
-        </LinearLayout>
-
-        <!-- 顶栏右侧：统计开关切换按钮 -->
-        <TextView
-            android:id="@+id/btn_toggle_stats"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:text="统计: 开"
-            android:textColor="@color/paper_accent"
-            android:textSize="12sp"
-            android:background="@drawable/bg_quick_key" />
-    </LinearLayout>
-
-    <!-- 右侧圆形悬浮轮盘菜单 (小巧精致版 170dp) -->
+    <!-- 右侧圆形悬浮轮盘菜单 (紧凑版 154dp，6 格均分圆周) -->
     <FrameLayout
         android:id="@+id/wheel_menu"
-        android:layout_width="170dp"
-        android:layout_height="170dp"
+        android:layout_width="154dp"
+        android:layout_height="154dp"
         android:layout_gravity="end|center_vertical"
         android:layout_marginEnd="16dp"
         android:background="@drawable/bg_wheel_circle"
@@ -191,13 +135,13 @@
             android:textStyle="bold"
             android:letterSpacing="0.08" />
 
-        <!-- 1. 顶部偏上 (12点偏中): 目录 -->
+        <!-- 1. 顶部居中 (12点): 目录 -->
         <LinearLayout
             android:id="@+id/btn_files_drawer"
-            android:layout_width="44dp"
+            android:layout_width="46dp"
             android:layout_height="40dp"
             android:layout_gravity="top|center_horizontal"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="3dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_btn_icon">
@@ -217,14 +161,41 @@
                 android:textSize="9sp" />
         </LinearLayout>
 
-        <!-- 2. 右上方 (2点方向): 大纲 -->
+        <!-- 2. 右上 (2点): 搜索 -->
         <LinearLayout
-            android:id="@+id/btn_outline"
-            android:layout_width="44dp"
+            android:id="@+id/btn_search"
+            android:layout_width="46dp"
             android:layout_height="40dp"
             android:layout_gravity="top|end"
-            android:layout_marginTop="25dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginEnd="5dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_icon">
+
+            <ImageView
+                android:id="@+id/iv_search_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_search" />
+
+            <TextView
+                android:id="@+id/tv_search_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="搜索"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="9sp" />
+        </LinearLayout>
+
+        <!-- 3. 右下 (4点): 大纲 -->
+        <LinearLayout
+            android:id="@+id/btn_outline"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginBottom="20dp"
+            android:layout_marginEnd="5dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_btn_icon">
@@ -244,14 +215,53 @@
                 android:textSize="9sp" />
         </LinearLayout>
 
-        <!-- 3. 右下方 (4点方向): 朗读 -->
+        <!-- 4. 底部居中 (6点): 书签 -->
+        <LinearLayout
+            android:id="@+id/btn_bookmark"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="3dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_icon">
+
+            <FrameLayout
+                android:layout_width="16dp"
+                android:layout_height="16dp">
+
+                <ImageView
+                    android:id="@+id/iv_bookmark_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_bookmark" />
+
+                <View
+                    android:id="@+id/view_bookmark_dot"
+                    android:layout_width="5dp"
+                    android:layout_height="5dp"
+                    android:layout_gravity="top|end"
+                    android:background="@drawable/bg_bookmark_dot"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tv_bookmark_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="书签"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="9sp" />
+        </LinearLayout>
+
+        <!-- 5. 左下 (8点): 朗读 -->
         <LinearLayout
             android:id="@+id/btn_tts"
-            android:layout_width="44dp"
+            android:layout_width="46dp"
             android:layout_height="40dp"
-            android:layout_gravity="bottom|end"
-            android:layout_marginBottom="25dp"
-            android:layout_marginEnd="8dp"
+            android:layout_gravity="bottom|start"
+            android:layout_marginBottom="20dp"
+            android:layout_marginStart="5dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_btn_icon">
@@ -271,88 +281,127 @@
                 android:textSize="9sp" />
         </LinearLayout>
 
-        <!-- 4. 正底部 (6点方向): 日夜间 -->
+        <!-- 6. 左上 (10点): 更多（夜间 / 保存 / 编辑） -->
         <LinearLayout
-            android:id="@+id/btn_theme_toggle"
-            android:layout_width="44dp"
-            android:layout_height="40dp"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="5dp"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:background="@drawable/bg_btn_icon">
-
-            <ImageView
-                android:id="@+id/iv_theme_icon"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_mode_night" />
-
-            <TextView
-                android:id="@+id/tv_theme_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="夜间"
-                android:textColor="@color/paper_text_primary"
-                android:textSize="9sp" />
-        </LinearLayout>
-
-        <!-- 5. 左下方 (8点方向): 编辑 -->
-        <LinearLayout
-            android:id="@+id/btn_toggle_mode"
-            android:layout_width="44dp"
-            android:layout_height="40dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginBottom="25dp"
-            android:layout_marginStart="8dp"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:background="@drawable/bg_btn_icon">
-
-            <ImageView
-                android:id="@+id/iv_edit_icon"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_edit" />
-
-            <TextView
-                android:id="@+id/tv_edit_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="编辑"
-                android:textColor="@color/paper_text_primary"
-                android:textSize="9sp" />
-        </LinearLayout>
-
-        <!-- 6. 左上方 (10点方向): 保存 -->
-        <LinearLayout
-            android:id="@+id/btn_save"
-            android:layout_width="44dp"
+            android:id="@+id/btn_more"
+            android:layout_width="46dp"
             android:layout_height="40dp"
             android:layout_gravity="top|start"
-            android:layout_marginTop="25dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginStart="5dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_btn_icon">
 
             <ImageView
-                android:id="@+id/iv_save_icon"
+                android:id="@+id/iv_more_icon"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
-                android:src="@drawable/ic_save" />
+                android:src="@drawable/ic_more" />
 
             <TextView
-                android:id="@+id/tv_save_label"
+                android:id="@+id/tv_more_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="保存"
-                android:textColor="@color/paper_accent"
-                android:textSize="9sp"
-                android:textStyle="bold" />
+                android:text="更多"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="9sp" />
+        </LinearLayout>
+
+        <!-- 隐藏锚点控件：主题 / 编辑 / 保存由「更多」菜单统一调度 -->
+        <LinearLayout
+            android:id="@+id/btn_theme_toggle"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone">
+            <ImageView android:id="@+id/iv_theme_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_mode_night" />
+            <TextView android:id="@+id/tv_theme_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="夜间" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btn_toggle_mode"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone">
+            <ImageView android:id="@+id/iv_edit_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_edit" />
+            <TextView android:id="@+id/tv_edit_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="编辑" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btn_save"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone">
+            <ImageView android:id="@+id/iv_save_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_save" />
+            <TextView android:id="@+id/tv_save_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="保存" />
         </LinearLayout>
 
     </FrameLayout>
+
+    <!-- 顶部纤细纸签标题栏 (轻触屏幕中间时显现，默认隐藏) -->
+    <LinearLayout
+        android:id="@+id/app_bar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="14dp"
+        android:background="@color/paper_surface"
+        android:elevation="4dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="未命名文档"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="middle" />
+
+            <TextView
+                android:id="@+id/tv_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="素笺纸质阅读"
+                android:textColor="@color/paper_text_secondary"
+                android:textSize="10.5sp"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/btn_toggle_stats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text="统计"
+            android:textColor="@color/paper_accent"
+            android:textSize="11.5sp"
+            android:background="@drawable/bg_quick_key" />
+    </LinearLayout>
+
+    <!-- 下拉搜索卡片（从顶栏下方展开） -->
+    <include
+        android:id="@+id/layout_search_card"
+        layout="@layout/layout_search_card" />
+
+    <!-- 右侧滑出：书签面板 -->
+    <include
+        android:id="@+id/panel_bookmark_include"
+        layout="@layout/panel_bookmark" />
 
     <!-- 侧拉遮罩层 (半透明遮罩) -->
     <View

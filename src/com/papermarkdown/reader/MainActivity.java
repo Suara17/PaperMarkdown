@@ -18,10 +18,13 @@ import android.speech.tts.UtteranceProgressListener;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.util.Base64;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
@@ -32,6 +35,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -53,6 +57,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
 
@@ -63,6 +69,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String KEY_SAF_TREE_URI = "saf_tree_uri";
     private static final String KEY_DARK_MODE = "key_dark_mode";
     private static final String KEY_STATS_ENABLED = "key_stats_enabled";
+    private static final String KEY_BOOKMARKS = "bookmarks_v1";
+    private static final int MAX_SEARCH_RESULTS = 80;
 
     // 控件：阅读与沉浸浮动菜单
     private View rootLayout;
@@ -80,6 +88,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private View btnThemeToggle;
     private View btnToggleMode;
     private View btnSave;
+    private View btnSearch;
+    private View btnBookmark;
+    private View btnMore;
+    private View viewBookmarkDot;
+    private ImageView ivBookmarkIcon;
     private ImageView ivThemeIcon;
     private TextView tvThemeLabel;
     private ImageView ivTtsIcon;
@@ -114,6 +127,43 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private ListView listOutline;
     private TextView tvEmptyOutline;
     private ImageView btnCloseOutline;
+
+    // 控件：下拉搜索卡片
+    private View searchCard;
+    private EditText etSearch;
+    private TextView tvSearchCount;
+    private View btnSearchUp, btnSearchDown, btnSearchClose;
+    private boolean isSearchOpen = false;
+    private String lastSearchKeyword = "";
+    private int searchHitCurrent = 0;
+    private int searchHitTotal = 0;
+    private final android.os.Handler searchHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable pendingSearch = null;
+
+    // 控件：书签面板
+    private LinearLayout panelBookmark;
+    private View panelBookmarkHeader;
+    private TextView tvPanelBookmarkTitle;
+    private ImageView btnAddBookmark;
+    private ImageView btnCloseBookmark;
+    private TextView tabBookmarks, tabFolderSearch;
+    private LinearLayout layoutBookmarkList;
+    private ListView listBookmarks;
+    private TextView tvEmptyBookmarks;
+    private LinearLayout layoutFolderSearch;
+    private EditText etFolderSearch;
+    private TextView btnDoFolderSearch;
+    private CheckBox cbFolderRecursive;
+    private TextView tvFolderSearchHint;
+    private ListView listFolderResults;
+    private TextView tvEmptyFolderResults;
+
+    // 书签数据
+    private final List<Bookmark> bookmarks = new ArrayList<>();
+    private BookmarkAdapter bookmarkAdapter;
+    private final List<SearchResult> searchResults = new ArrayList<>();
+    private SearchResultAdapter searchResultAdapter;
+    private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
 
     // 分割线控件集合
     private View div1, div2, div3, div4, div5;
@@ -175,6 +225,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setupQuickToolbar();
         setupAdapters();
         setupListeners();
+        setupSearchUi();
+        setupBookmarkUi();
+        loadBookmarks();
         initTtsEngine();
 
         // 读取日间/夜间偏好并应用
@@ -242,6 +295,37 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         listOutline = findViewById(R.id.list_outline);
         tvEmptyOutline = findViewById(R.id.tv_empty_outline);
         btnCloseOutline = findViewById(R.id.btn_close_outline);
+
+        btnSearch = findViewById(R.id.btn_search);
+        btnBookmark = findViewById(R.id.btn_bookmark);
+        btnMore = findViewById(R.id.btn_more);
+        viewBookmarkDot = findViewById(R.id.view_bookmark_dot);
+        ivBookmarkIcon = findViewById(R.id.iv_bookmark_icon);
+
+        searchCard = findViewById(R.id.search_card);
+        etSearch = findViewById(R.id.et_search);
+        tvSearchCount = findViewById(R.id.tv_search_count);
+        btnSearchUp = findViewById(R.id.btn_search_up);
+        btnSearchDown = findViewById(R.id.btn_search_down);
+        btnSearchClose = findViewById(R.id.btn_search_close);
+
+        panelBookmark = findViewById(R.id.panel_bookmark);
+        panelBookmarkHeader = findViewById(R.id.panel_bookmark_header);
+        tvPanelBookmarkTitle = findViewById(R.id.tv_panel_bookmark_title);
+        btnAddBookmark = findViewById(R.id.btn_add_bookmark);
+        btnCloseBookmark = findViewById(R.id.btn_close_bookmark);
+        tabBookmarks = findViewById(R.id.tab_bookmarks);
+        tabFolderSearch = findViewById(R.id.tab_folder_search);
+        layoutBookmarkList = findViewById(R.id.layout_bookmark_list);
+        listBookmarks = findViewById(R.id.list_bookmarks);
+        tvEmptyBookmarks = findViewById(R.id.tv_empty_bookmarks);
+        layoutFolderSearch = findViewById(R.id.layout_folder_search);
+        etFolderSearch = findViewById(R.id.et_folder_search);
+        btnDoFolderSearch = findViewById(R.id.btn_do_folder_search);
+        cbFolderRecursive = findViewById(R.id.cb_folder_recursive);
+        tvFolderSearchHint = findViewById(R.id.tv_folder_search_hint);
+        listFolderResults = findViewById(R.id.list_folder_results);
+        tvEmptyFolderResults = findViewById(R.id.tv_empty_folder_results);
 
         divDrawer1 = findViewById(R.id.div_drawer_1);
         divDrawer2 = findViewById(R.id.div_drawer_2);
@@ -492,6 +576,55 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         panelOutlineHeader.setBackgroundColor(colorSurfaceVariant);
         tvPanelOutlineTitle.setTextColor(colorTextPrimary);
 
+        // 10. 搜索卡片
+        if (searchCard != null) {
+            GradientDrawable searchCardBg = new GradientDrawable();
+            searchCardBg.setColor(colorSurface);
+            searchCardBg.setCornerRadius(14 * density);
+            searchCardBg.setStroke((int) (1f * density), colorBorder);
+            searchCard.setBackground(searchCardBg);
+            if (etSearch != null) {
+                etSearch.setTextColor(colorTextPrimary);
+                etSearch.setHintTextColor(colorTextSecondary);
+            }
+            tvSearchCount.setBackgroundResource(R.drawable.bg_search_count);
+        }
+
+        // 11. 书签面板
+        if (panelBookmark != null) {
+            GradientDrawable bookmarkSheetBg = new GradientDrawable();
+            bookmarkSheetBg.setColor(colorBg);
+            bookmarkSheetBg.setCornerRadii(new float[]{24 * density, 24 * density, 0, 0, 0, 0, 24 * density, 24 * density});
+            bookmarkSheetBg.setStroke((int) (1.5f * density), colorBorder);
+            panelBookmark.setBackground(bookmarkSheetBg);
+
+            panelBookmarkHeader.setBackgroundColor(colorSurfaceVariant);
+            tvPanelBookmarkTitle.setTextColor(colorTextPrimary);
+            ((View) findViewById(R.id.div_bookmark_1)).setBackgroundColor(colorBorder);
+            ((View) findViewById(R.id.div_bookmark_2)).setBackgroundColor(colorBorder);
+            tabBookmarks.setTextColor(layoutBookmarkList.getVisibility() == View.VISIBLE ? colorAccent : colorTextSecondary);
+            tabFolderSearch.setTextColor(layoutBookmarkList.getVisibility() == View.VISIBLE ? colorTextSecondary : colorAccent);
+            tvEmptyBookmarks.setTextColor(colorTextSecondary);
+            tvEmptyFolderResults.setTextColor(colorTextSecondary);
+            tvFolderSearchHint.setTextColor(colorTextSecondary);
+            etFolderSearch.setTextColor(colorTextPrimary);
+            etFolderSearch.setHintTextColor(colorTextSecondary);
+            btnDoFolderSearch.setTextColor(colorAccent);
+            cbFolderRecursive.setTextColor(colorTextSecondary);
+            GradientDrawable folderSearchBg = new GradientDrawable();
+            folderSearchBg.setColor(colorSurface);
+            folderSearchBg.setCornerRadius(14 * density);
+            folderSearchBg.setStroke((int) (1f * density), colorBorder);
+            etFolderSearch.setBackground(folderSearchBg);
+            ivBookmarkIcon.setColorFilter(colorTextPrimary);
+            ((ImageView) findViewById(R.id.iv_search_icon)).setColorFilter(colorTextPrimary);
+            ((ImageView) findViewById(R.id.iv_more_icon)).setColorFilter(colorTextPrimary);
+            ((ImageView) findViewById(R.id.iv_outline_icon)).setColorFilter(colorTextPrimary);
+            ((ImageView) findViewById(R.id.iv_folder_icon)).setColorFilter(colorTextPrimary);
+            if (bookmarkAdapter != null) bookmarkAdapter.notifyDataSetChanged();
+            if (searchResultAdapter != null) searchResultAdapter.notifyDataSetChanged();
+        }
+
         updateTtsUi();
         updateStatsButtonUi();
         syncWebViewTheme();
@@ -722,6 +855,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         outlineAdapter = new OutlineAdapter();
         listOutline.setAdapter(outlineAdapter);
+
+        bookmarkAdapter = new BookmarkAdapter();
+        listBookmarks.setAdapter(bookmarkAdapter);
+
+        searchResultAdapter = new SearchResultAdapter();
+        listFolderResults.setAdapter(searchResultAdapter);
     }
 
     private void setupListeners() {
@@ -740,6 +879,32 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             public void onClick(View v) {
                 hideControlsMenu(false);
                 toggleOutlinePanel();
+            }
+        });
+
+        // 搜索（下拉卡片）
+        btnSearch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideControlsMenu(false);
+                openSearchCard();
+            }
+        });
+
+        // 书签面板
+        btnBookmark.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideControlsMenu(false);
+                toggleBookmarkPanel();
+            }
+        });
+
+        // 更多：夜间 / 保存 / 编辑
+        btnMore.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showMoreMenu();
             }
         });
 
@@ -806,6 +971,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             public void onClick(View v) {
                 hideFileListPanel();
                 hideOutlinePanel();
+                hideBookmarkPanel();
             }
         });
 
@@ -858,6 +1024,848 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 hideControlsMenu(false);
             }
         });
+    }
+
+    // ==================== 下拉搜索卡片 ====================
+
+    private void setupSearchUi() {
+        if (etSearch == null) return;
+
+        etSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                scheduleSearch(s.toString());
+            }
+        });
+
+        etSearch.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, android.view.KeyEvent event) {
+                stepSearchInPage(1);
+                return true;
+            }
+        });
+
+        btnSearchUp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stepSearchInPage(-1);
+            }
+        });
+
+        btnSearchDown.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stepSearchInPage(1);
+            }
+        });
+
+        btnSearchClose.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeSearchCard();
+            }
+        });
+    }
+
+    /** 输入停顿 180ms 后再渲染，避免逐字搜索造成卡顿 */
+    private void scheduleSearch(final String keyword) {
+        if (pendingSearch != null) {
+            searchHandler.removeCallbacks(pendingSearch);
+        }
+        pendingSearch = new Runnable() {
+            @Override
+            public void run() {
+                performSearchInPage(keyword);
+            }
+        };
+        searchHandler.postDelayed(pendingSearch, 180);
+    }
+
+    private void openSearchCard() {
+        if (isEditMode) {
+            Toast.makeText(this, "请先退出编辑模式再搜索", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        hideFileListPanel();
+        hideOutlinePanel();
+        hideBookmarkPanel();
+        isSearchOpen = true;
+
+        if (tvReadingStats != null) {
+            tvReadingStats.setVisibility(View.GONE);
+        }
+        searchCard.setVisibility(View.VISIBLE);
+        Animation dropIn = new TranslateAnimation(
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, -1.2f,
+                Animation.RELATIVE_TO_SELF, 0f);
+        dropIn.setDuration(220);
+        dropIn.setInterpolator(new DecelerateInterpolator());
+        searchCard.startAnimation(dropIn);
+
+        etSearch.requestFocus();
+        etSearch.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT);
+                }
+            }
+        }, 120);
+    }
+
+    private void closeSearchCard() {
+        if (!isSearchOpen) return;
+        isSearchOpen = false;
+        if (pendingSearch != null) {
+            searchHandler.removeCallbacks(pendingSearch);
+            pendingSearch = null;
+        }
+        Animation dropOut = new TranslateAnimation(
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, 0f,
+                Animation.RELATIVE_TO_SELF, -1.2f);
+        dropOut.setDuration(180);
+        dropOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                searchCard.setVisibility(View.GONE);
+            }
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        searchCard.startAnimation(dropOut);
+
+        etSearch.setText("");
+        etSearch.clearFocus();
+        lastSearchKeyword = "";
+        searchHitCurrent = 0;
+        searchHitTotal = 0;
+        tvSearchCount.setText("");
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+        }
+        webView.evaluateJavascript("clearSearch();", null);
+        updateReadingStatsUi();
+    }
+
+    /** 在 WebView 内执行搜索并回写命中数 */
+    private void performSearchInPage(final String keyword) {
+        lastSearchKeyword = keyword == null ? "" : keyword;
+        if (!isWebViewReady) {
+            return;
+        }
+        if (lastSearchKeyword.trim().isEmpty()) {
+            searchHitCurrent = 0;
+            searchHitTotal = 0;
+            tvSearchCount.setText("");
+            webView.evaluateJavascript("clearSearch();", null);
+            return;
+        }
+
+        String js = "searchInPage(" + JSONObject.quote(lastSearchKeyword) + ");";
+        webView.evaluateJavascript(js, new android.webkit.ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                int total = 0;
+                try {
+                    total = (int) Double.parseDouble(value.trim().replace("\"", ""));
+                } catch (Exception ignored) {
+                }
+                searchHitTotal = total;
+                searchHitCurrent = total > 0 ? 1 : 0;
+                updateSearchCountUi();
+            }
+        });
+    }
+
+    private void stepSearchInPage(final int dir) {
+        if (searchHitTotal <= 0) {
+            if (!TextUtils.isEmpty(lastSearchKeyword)) {
+                performSearchInPage(lastSearchKeyword);
+            }
+            return;
+        }
+        webView.evaluateJavascript("stepSearch(" + dir + ");", new android.webkit.ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                if (value == null) return;
+                String cleaned = value.replace("\"", "").trim();
+                String[] parts = cleaned.split(",");
+                if (parts.length == 2) {
+                    try {
+                        searchHitCurrent = Integer.parseInt(parts[0].trim());
+                        searchHitTotal = Integer.parseInt(parts[1].trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+                updateSearchCountUi();
+            }
+        });
+    }
+
+    private void updateSearchCountUi() {
+        if (tvSearchCount == null) return;
+        if (lastSearchKeyword.trim().isEmpty()) {
+            tvSearchCount.setText("");
+            tvSearchCount.setTextColor(textSecondaryColor());
+        } else if (searchHitTotal == 0) {
+            tvSearchCount.setText("无匹配");
+            tvSearchCount.setTextColor(textSecondaryColor());
+        } else {
+            tvSearchCount.setText(searchHitCurrent + "/" + searchHitTotal);
+            tvSearchCount.setTextColor(accentColor());
+        }
+    }
+
+    // ==================== 书签 ====================
+
+    private void setupBookmarkUi() {
+        if (panelBookmark == null) return;
+
+        tabBookmarks.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switchBookmarkTab(true);
+            }
+        });
+        tabFolderSearch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switchBookmarkTab(false);
+            }
+        });
+
+        btnAddBookmark.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switchBookmarkTab(true);
+                addBookmarkAtCurrentPosition();
+            }
+        });
+
+        btnCloseBookmark.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideBookmarkPanel();
+            }
+        });
+
+        listBookmarks.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position < 0 || position >= bookmarks.size()) return;
+                jumpToBookmark(bookmarks.get(position));
+            }
+        });
+
+        listBookmarks.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < bookmarks.size()) {
+                    showBookmarkOptions(bookmarks.get(position));
+                }
+                return true;
+            }
+        });
+
+        btnDoFolderSearch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startFolderSearch();
+            }
+        });
+
+        etFolderSearch.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, android.view.KeyEvent event) {
+                startFolderSearch();
+                return true;
+            }
+        });
+
+        listFolderResults.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position < 0 || position >= searchResults.size()) return;
+                openSearchResult(searchResults.get(position));
+            }
+        });
+    }
+
+    private void switchBookmarkTab(boolean showBookmarks) {
+        layoutBookmarkList.setVisibility(showBookmarks ? View.VISIBLE : View.GONE);
+        layoutFolderSearch.setVisibility(showBookmarks ? View.GONE : View.VISIBLE);
+
+        if (showBookmarks) {
+            tabBookmarks.setTextColor(accentColor());
+            tabBookmarks.setBackgroundResource(R.drawable.bg_quick_key);
+            tabFolderSearch.setTextColor(textSecondaryColor());
+            tabFolderSearch.setBackgroundResource(0);
+        } else {
+            tabFolderSearch.setTextColor(accentColor());
+            tabFolderSearch.setBackgroundResource(R.drawable.bg_quick_key);
+            tabBookmarks.setTextColor(textSecondaryColor());
+            tabBookmarks.setBackgroundResource(0);
+            etFolderSearch.requestFocus();
+        }
+    }
+
+    private void toggleBookmarkPanel() {
+        if (panelBookmark.getVisibility() == View.VISIBLE) {
+            hideBookmarkPanel();
+        } else {
+            hideFileListPanel();
+            hideOutlinePanel();
+            if (isSearchOpen) {
+                closeSearchCard();
+            }
+            loadBookmarks();
+            bookmarks.clear();
+            bookmarks.addAll(bookmarksOfDoc(currentDocKey));
+            bookmarkAdapter.notifyDataSetChanged();
+            updateBookmarkEmptyState();
+            tvPanelBookmarkTitle.setText("书签 · " + shortDocName());
+            switchBookmarkTab(true);
+            showPanel(panelBookmark, true);
+        }
+    }
+
+    private void hideBookmarkPanel() {
+        if (panelBookmark == null || panelBookmark.getVisibility() != View.VISIBLE) return;
+        showPanel(panelBookmark, false);
+    }
+
+    private void showPanel(final View panel, final boolean show) {
+        maskOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) {
+            panel.setVisibility(View.VISIBLE);
+            Animation slideIn = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideIn.setDuration(240);
+            slideIn.setInterpolator(new DecelerateInterpolator());
+            panel.startAnimation(slideIn);
+        } else {
+            Animation slideOut = new TranslateAnimation(
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0f,
+                    Animation.RELATIVE_TO_SELF, 0f);
+            slideOut.setDuration(200);
+            slideOut.setAnimationListener(new Animation.AnimationListener() {
+                @Override
+                public void onAnimationStart(Animation animation) {}
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    panel.setVisibility(View.GONE);
+                    maskOverlay.setVisibility(View.GONE);
+                }
+                @Override
+                public void onAnimationRepeat(Animation animation) {}
+            });
+            panel.startAnimation(slideOut);
+        }
+    }
+
+    private String shortDocName() {
+        String name = currentFileName == null ? "当前文档" : currentFileName;
+        if (name.length() > 12) {
+            name = name.substring(0, 11) + "…";
+        }
+        return name;
+    }
+
+    private void updateBookmarkEmptyState() {
+        boolean empty = bookmarks.isEmpty();
+        tvEmptyBookmarks.setVisibility(empty ? View.VISIBLE : View.GONE);
+        if (viewBookmarkDot != null) {
+            viewBookmarkDot.setVisibility(bookmarksOfDoc(currentDocKey).isEmpty() ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    /** 在当前阅读位置添加书签（弹窗可改名） */
+    private void addBookmarkAtCurrentPosition() {
+        if (isEditMode) {
+            Toast.makeText(this, "编辑模式下暂不支持添加书签", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!isWebViewReady || TextUtils.isEmpty(currentDocKey)) {
+            Toast.makeText(this, "文档尚未就绪，稍后再试", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        webView.evaluateJavascript("captureBookmarkAnchor();", new android.webkit.ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                String raw = value == null ? "" : value;
+                // JS 返回 JSON 字符串，带引号与转义
+                if (raw.startsWith("\"")) {
+                    try {
+                        raw = new JSONArray("[" + raw + "]").getString(0);
+                    } catch (Exception e) {
+                        raw = raw.replace("\"", "");
+                    }
+                }
+                int offset = 0;
+                String snippet = raw;
+                int bar = raw.indexOf('|');
+                if (bar >= 0) {
+                    try {
+                        offset = Integer.parseInt(raw.substring(0, bar).trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                    snippet = raw.substring(bar + 1).trim();
+                }
+                promptBookmarkTitle(offset, snippet);
+            }
+        });
+    }
+
+    private void promptBookmarkTitle(final int offsetPx, final String snippet) {
+        String defaultTitle;
+        if (snippet == null || snippet.trim().isEmpty()) {
+            defaultTitle = "书签 · " + formatBookmarkTime(System.currentTimeMillis());
+        } else {
+            defaultTitle = snippet.length() > 18 ? snippet.substring(0, 18) + "…" : snippet;
+        }
+
+        final EditText input = new EditText(this);
+        input.setText(defaultTitle);
+        input.setSelection(input.getText().length());
+        input.setSingleLine(true);
+        input.setPadding(48, 32, 48, 32);
+        input.setTextColor(textPrimaryColor());
+        if (paperTypeface != null) {
+            input.setTypeface(paperTypeface);
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("添加书签")
+                .setMessage("把当前位置夹在纸上，随时翻回。")
+                .setView(input)
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String title = input.getText().toString().trim();
+                        if (title.isEmpty()) {
+                            title = "未命名书签";
+                        }
+                        saveNewBookmark(title, snippet, offsetPx);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void saveNewBookmark(String title, String snippet, int offsetPx) {
+        if (TextUtils.isEmpty(currentDocKey)) return;
+        Bookmark bm = new Bookmark(currentDocKey, title, snippet, offsetPx, System.currentTimeMillis());
+        loadBookmarks();
+        bookmarks.add(0, bm);
+        persistBookmarks();
+        refreshBookmarkList();
+        Toast.makeText(this, "已添加书签「" + title + "」", Toast.LENGTH_SHORT).show();
+    }
+
+    private void jumpToBookmark(final Bookmark bm) {
+        if (bm == null) return;
+        if (!bm.docKey.equals(currentDocKey)) {
+            Toast.makeText(this, "这份书签属于其它文档", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (isEditMode) {
+            toggleMode();
+        }
+        hideBookmarkPanel();
+        hideControlsMenu(false);
+        if (!isWebViewReady) return;
+        String js = "scrollToBookmark(" + JSONObject.quote(bm.snippet == null ? "" : bm.snippet)
+                + ", " + bm.offsetPx + ");";
+        webView.evaluateJavascript(js, null);
+    }
+
+    private void showBookmarkOptions(final Bookmark bm) {
+        final String[] items = new String[]{"跳到此处", "重命名", "删除"};
+        new AlertDialog.Builder(this)
+                .setTitle(bm.title)
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (which == 0) {
+                            jumpToBookmark(bm);
+                        } else if (which == 1) {
+                            renameBookmark(bm);
+                        } else {
+                            confirmDeleteBookmark(bm);
+                        }
+                    }
+                })
+                .show();
+    }
+
+    private void renameBookmark(final Bookmark bm) {
+        final EditText input = new EditText(this);
+        input.setText(bm.title);
+        input.setSelection(input.getText().length());
+        input.setSingleLine(true);
+        input.setPadding(48, 32, 48, 32);
+        input.setTextColor(textPrimaryColor());
+        new AlertDialog.Builder(this)
+                .setTitle("重命名书签")
+                .setView(input)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String newTitle = input.getText().toString().trim();
+                        if (newTitle.isEmpty()) return;
+                        bm.title = newTitle;
+                        persistBookmarks();
+                        refreshBookmarkList();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void confirmDeleteBookmark(final Bookmark bm) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除书签")
+                .setMessage("确定删除「" + bm.title + "」吗？")
+                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        bookmarks.remove(bm);
+                        persistBookmarks();
+                        refreshBookmarkList();
+                        Toast.makeText(MainActivity.this, "已删除书签", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void refreshBookmarkList() {
+        bookmarks.clear();
+        bookmarks.addAll(bookmarksOfDoc(currentDocKey));
+        if (bookmarkAdapter != null) {
+            bookmarkAdapter.notifyDataSetChanged();
+        }
+        updateBookmarkEmptyState();
+    }
+
+    private List<Bookmark> bookmarksOfDoc(String docKey) {
+        List<Bookmark> result = new ArrayList<>();
+        if (docKey == null) return result;
+        for (Bookmark bm : bookmarks) {
+            if (docKey.equals(bm.docKey)) {
+                result.add(bm);
+            }
+        }
+        Collections.sort(result, new Comparator<Bookmark>() {
+            @Override
+            public int compare(Bookmark a, Bookmark b) {
+                return Long.compare(a.createdAt, b.createdAt);
+            }
+        });
+        return result;
+    }
+
+    /** 从 SharedPreferences 读取全部书签 */
+    private void loadBookmarks() {
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String json = sp.getString(KEY_BOOKMARKS, "[]");
+        List<Bookmark> loaded = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                Bookmark bm = Bookmark.fromJson(arr.optJSONObject(i));
+                if (bm != null && !TextUtils.isEmpty(bm.docKey)) {
+                    loaded.add(bm);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        bookmarks.clear();
+        bookmarks.addAll(loaded);
+    }
+
+    /** 将全部书签写回 SharedPreferences */
+    private void persistBookmarks() {
+        JSONArray arr = new JSONArray();
+        for (Bookmark bm : bookmarks) {
+            arr.put(bm.toJson());
+        }
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(KEY_BOOKMARKS, arr.toString())
+                .apply();
+    }
+
+    private String formatBookmarkTime(long time) {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault());
+        return sdf.format(new java.util.Date(time));
+    }
+
+    // ==================== 文件夹内全文查找 ====================
+
+    /** 跨文档搜索结果模型 */
+    private static class SearchResult {
+        final String fileName;
+        final String docKey;
+        final String snippet;
+        final int hitCount;
+        final FileItem itemRef;
+
+        SearchResult(String fileName, String docKey, String snippet, int hitCount, FileItem itemRef) {
+            this.fileName = fileName;
+            this.docKey = docKey;
+            this.snippet = snippet;
+            this.hitCount = hitCount;
+            this.itemRef = itemRef;
+        }
+    }
+
+    private void startFolderSearch() {
+        final String keyword = etFolderSearch.getText().toString().trim();
+        if (keyword.isEmpty()) {
+            tvFolderSearchHint.setText("请输入关键词");
+            return;
+        }
+        searchResults.clear();
+        searchResultAdapter.notifyDataSetChanged();
+        tvEmptyFolderResults.setText("正在翻阅…");
+        tvEmptyFolderResults.setVisibility(View.VISIBLE);
+        tvFolderSearchHint.setText("");
+
+        final boolean recursive = cbFolderRecursive.isChecked();
+        searchExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                final List<SearchResult> found = scanFolderForKeyword(keyword, recursive);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        searchResults.clear();
+                        searchResults.addAll(found);
+                        searchResultAdapter.notifyDataSetChanged();
+                        tvEmptyFolderResults.setText(found.isEmpty() ? "没有找到包含「" + keyword + "」的文档" : "");
+                        tvEmptyFolderResults.setVisibility(found.isEmpty() ? View.VISIBLE : View.GONE);
+                        tvFolderSearchHint.setText("共 " + found.size() + " 篇");
+                    }
+                });
+            }
+        });
+    }
+
+    /** 在工作线程中扫描当前目录（可选递归），返回命中文件列表 */
+    private List<SearchResult> scanFolderForKeyword(String keyword, boolean recursive) {
+        List<SearchResult> found = new ArrayList<>();
+        String lowerKey = keyword.toLowerCase();
+        List<FileItem> candidates = new ArrayList<>();
+        collectDocItems(candidates, recursive, 0);
+
+        for (FileItem item : candidates) {
+            if (found.size() >= MAX_SEARCH_RESULTS) break;
+            String content = readDocContent(item);
+            if (content == null) continue;
+            int hits = 0;
+            String lowerContent = content.toLowerCase();
+            int idx = lowerContent.indexOf(lowerKey);
+            if (idx < 0) continue;
+            int firstIdx = idx;
+            while (idx >= 0 && hits < 999) {
+                hits++;
+                idx = lowerContent.indexOf(lowerKey, idx + lowerKey.length());
+            }
+            int from = Math.max(0, firstIdx - 24);
+            int to = Math.min(content.length(), firstIdx + keyword.length() + 46);
+            String snippet = content.substring(from, to).replaceAll("[#>*`\\-\\[\\]]", "").replaceAll("\\s+", " ").trim();
+            String docKey = (item.uri != null) ? item.uri.toString() : (item.path != null ? item.path : item.name);
+            found.add(new SearchResult(item.name, docKey, snippet, hits, item));
+        }
+        return found;
+    }
+
+    private void collectDocItems(List<FileItem> out, boolean recursive, int depth) {
+        if (depth > 6) return;
+        for (FileItem item : new ArrayList<>(fileItemList)) {
+            if (!item.isDirectory) {
+                out.add(item);
+            } else if (recursive) {
+                if (item.uri != null) {
+                    out.addAll(scanTreeDir(item, depth + 1));
+                } else if (item.path != null) {
+                    File dir = new File(item.path);
+                    File[] files = dir.listFiles();
+                    if (files == null) continue;
+                    for (File f : files) {
+                        if (f.isDirectory()) {
+                            if (depth + 1 <= 6) {
+                                List<FileItem> sub = new ArrayList<>();
+                                collectLocalDirDocs(f, sub, depth + 2);
+                                out.addAll(sub);
+                            }
+                        } else if (isMarkdownName(f.getName())) {
+                            out.add(new FileItem(f));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void collectLocalDirDocs(File dir, List<FileItem> out, int depth) {
+        if (depth > 6) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                collectLocalDirDocs(f, out, depth + 1);
+            } else if (isMarkdownName(f.getName())) {
+                out.add(new FileItem(f));
+            }
+        }
+    }
+
+    private List<FileItem> scanTreeDir(FileItem dirItem, int depth) {
+        List<FileItem> out = new ArrayList<>();
+        if (depth > 6 || safRootTreeUri == null || dirItem.docId == null) return out;
+        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(safRootTreeUri, dirItem.docId);
+        try {
+            Cursor cursor = getContentResolver().query(childrenUri, new String[]{
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE
+            }, null, null, null);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String childDocId = cursor.getString(0);
+                    String name = cursor.getString(1);
+                    String mime = cursor.getString(2);
+                    if (name == null) continue;
+                    Uri childUri = DocumentsContract.buildDocumentUriUsingTree(safRootTreeUri, childDocId);
+                    boolean isDir = mime != null && mime.equals(DocumentsContract.Document.MIME_TYPE_DIR);
+                    if (isDir) {
+                        FileItem subDir = new FileItem(name, childUri, childDocId, 0, 0, true);
+                        out.addAll(scanTreeDir(subDir, depth + 1));
+                    } else if (isMarkdownName(name)) {
+                        out.add(new FileItem(name, childUri, childDocId, 0, 0, false));
+                    }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return out;
+    }
+
+    private boolean isMarkdownName(String name) {
+        String lower = name.toLowerCase();
+        return lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt");
+    }
+
+    private String readDocContent(FileItem item) {
+        StringBuilder sb = new StringBuilder();
+        try {
+            InputStream is;
+            if (item.uri != null) {
+                is = getContentResolver().openInputStream(item.uri);
+            } else if (item.path != null) {
+                is = new FileInputStream(new File(item.path));
+            } else {
+                return null;
+            }
+            if (is == null) return null;
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+            String line;
+            int lines = 0;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+                if (++lines > 4000) break; // 防止超大文件拖慢
+            }
+            reader.close();
+            is.close();
+        } catch (Exception e) {
+            return null;
+        }
+        return sb.toString();
+    }
+
+    private void openSearchResult(final SearchResult result) {
+        if (result == null) return;
+        hideBookmarkPanel();
+        if (result.itemRef != null) {
+            stopTts();
+            loadFile(result.itemRef);
+        }
+        // 文档加载并渲染后，再在本文中定位关键词
+        final String keyword = etFolderSearch.getText().toString().trim();
+        webView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (TextUtils.isEmpty(keyword)) return;
+                openSearchCard();
+                etSearch.setText(keyword);
+                etSearch.setSelection(etSearch.getText().length());
+            }
+        }, 320);
+    }
+
+    // ==================== 更多菜单 ====================
+
+    private void showMoreMenu() {
+        final String[] items = new String[]{
+                isDarkMode ? "切换为日间宣纸" : "切换为夜间墨色",
+                "保存当前文档",
+                isEditMode ? "完成阅读" : "进入编辑模式"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("更多")
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (which == 0) {
+                            hideControlsMenu(false);
+                            toggleTheme();
+                        } else if (which == 1) {
+                            hideControlsMenu(false);
+                            saveCurrentFile(true);
+                        } else {
+                            hideControlsMenu(false);
+                            toggleMode();
+                        }
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private int accentColor() {
+        return isDarkMode ? Color.parseColor("#D48B68") : Color.parseColor("#8C5338");
+    }
+
+    private int textPrimaryColor() {
+        return isDarkMode ? Color.parseColor("#D6D0C7") : Color.parseColor("#2D2A28");
+    }
+
+    private int textSecondaryColor() {
+        return isDarkMode ? Color.parseColor("#8C857C") : Color.parseColor("#7A746E");
     }
 
     private void loadLastLocationOrDefaults() {
@@ -914,14 +1922,17 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 + "- **日夜模式**：一键切换温润宣纸与夜间墨色，暗光更舒适；\n"
                 + "- **语音朗读**：轻点「朗读」享受贴心语音朗读，舒缓双眼；\n"
                 + "- **子目录浏览**：支持进入与返回任意层级子目录浏览 Markdown；\n"
+                + "- **全文搜索**：轻点「搜索」下拉即用的紧凑搜索条，实时高亮并逐个跳转命中处；\n"
+                + "- **书签夹页**：轻点「书签」夹住当前位置，随时翻回，还能在文件夹里跨文档查找；\n"
                 + "- **即刻编辑**：随时在阅读与编辑模式间无缝切换，附带便捷 Markdown 输入栏。\n\n"
                 + "### 快捷操作指南\n\n"
                 + "1. **轻触屏幕中间**：唤起或收起右侧悬浮圆形功能轮盘；\n"
                 + "2. 点击 **大纲**：右侧滑出章节目录抽屉，直达重点；\n"
                 + "3. 点击 **目录**：左侧滑出文稿与子目录浏览器；\n"
-                + "4. 点击 **朗读**：启停智能有声朗读；\n"
-                + "5. 点击 **夜间/日间**：随心切换暗色与宣纸主题；\n"
-                + "6. 点击 **编辑**：进入素雅信笺编辑模式。\n\n"
+                + "4. 点击 **搜索**：下拉搜索条，输入即找，上下箭头逐处跳转；\n"
+                + "5. 点击 **书签**：夹住当前页，或在文件夹里跨文档查找；\n"
+                + "6. 点击 **朗读**：启停智能有声朗读；\n"
+                + "7. 点击 **更多**：切换夜间/日间、保存文档、进入编辑模式。\n\n"
                 + "---\n\n"
                 + "祝您阅读与书写愉快！";
 
@@ -1228,6 +2239,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 .apply();
     }
 
+    /** 文档切换后刷新书签徽标与面板 */
+    private void refreshBookmarksForCurrentDoc() {
+        if (bookmarkAdapter == null) return;
+        bookmarks.clear();
+        bookmarks.addAll(bookmarksOfDoc(currentDocKey));
+        bookmarkAdapter.notifyDataSetChanged();
+        updateBookmarkEmptyState();
+    }
+
     private void renderInWebView(String markdown) {
         if (markdown == null) markdown = "";
         try {
@@ -1246,6 +2266,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void updateOutlineList() {
+        refreshBookmarksForCurrentDoc();
         allOutlineList.clear();
         String textToParse = isEditMode ? etContent.getText().toString() : currentMarkdownText;
         List<OutlineItem> items = MarkdownParser.extractOutline(textToParse);
@@ -1322,6 +2343,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             webView.setVisibility(View.VISIBLE);
             updateReadingStatsUi();
             updateOutlineList();
+            refreshBookmarksForCurrentDoc();
             Toast.makeText(this, "已切回沉浸阅读", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1583,6 +2605,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     @Override
     public void onBackPressed() {
+        if (isSearchOpen) {
+            closeSearchCard();
+            return;
+        }
+        if (panelBookmark != null && panelBookmark.getVisibility() == View.VISIBLE) {
+            hideBookmarkPanel();
+            return;
+        }
         if (panelOutline.getVisibility() == View.VISIBLE) {
             hideOutlinePanel();
             return;
@@ -1627,6 +2657,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
+        searchHandler.removeCallbacksAndMessages(null);
+        searchExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -1793,6 +2825,95 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             if (paperTypeface != null) {
                 tvName.setTypeface(paperTypeface, Typeface.BOLD);
                 tvInfo.setTypeface(paperTypeface);
+            }
+            return convertView;
+        }
+    }
+
+    /** 书签列表适配器 */
+    private class BookmarkAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return bookmarks.size(); }
+        @Override
+        public Object getItem(int position) { return bookmarks.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.item_bookmark, parent, false);
+            }
+            Bookmark bm = bookmarks.get(position);
+            View root = convertView.findViewById(R.id.item_bookmark_root);
+            TextView tvTitle = convertView.findViewById(R.id.tv_bookmark_title);
+            TextView tvSnippet = convertView.findViewById(R.id.tv_bookmark_snippet);
+            TextView tvTime = convertView.findViewById(R.id.tv_bookmark_time);
+
+            float density = getResources().getDisplayMetrics().density;
+            GradientDrawable cardBg = new GradientDrawable();
+            cardBg.setColor(isDarkMode ? Color.parseColor("#252320") : Color.parseColor("#FAF7F0"));
+            cardBg.setCornerRadius(10 * density);
+            cardBg.setStroke((int) (1f * density), isDarkMode ? Color.parseColor("#383532") : Color.parseColor("#E0D8CB"));
+            root.setBackground(cardBg);
+
+            tvTitle.setText(bm.title);
+            tvTitle.setTextColor(textPrimaryColor());
+            if (bm.snippet != null && !bm.snippet.trim().isEmpty()) {
+                tvSnippet.setVisibility(View.VISIBLE);
+                tvSnippet.setText(bm.snippet);
+            } else {
+                tvSnippet.setVisibility(View.GONE);
+            }
+            tvSnippet.setTextColor(textSecondaryColor());
+            tvTime.setText(formatBookmarkTime(bm.createdAt));
+            tvTime.setTextColor(textSecondaryColor());
+
+            if (paperTypeface != null) {
+                tvTitle.setTypeface(paperTypeface, Typeface.BOLD);
+                tvSnippet.setTypeface(paperTypeface);
+            }
+            return convertView;
+        }
+    }
+
+    /** 跨文档搜索结果适配器 */
+    private class SearchResultAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return searchResults.size(); }
+        @Override
+        public Object getItem(int position) { return searchResults.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.item_search_result, parent, false);
+            }
+            SearchResult r = searchResults.get(position);
+            View root = convertView.findViewById(R.id.item_search_root);
+            TextView tvFile = convertView.findViewById(R.id.tv_result_file);
+            TextView tvHits = convertView.findViewById(R.id.tv_result_hits);
+            TextView tvSnippet = convertView.findViewById(R.id.tv_result_snippet);
+
+            float density = getResources().getDisplayMetrics().density;
+            GradientDrawable cardBg = new GradientDrawable();
+            cardBg.setColor(isDarkMode ? Color.parseColor("#252320") : Color.parseColor("#FAF7F0"));
+            cardBg.setCornerRadius(10 * density);
+            cardBg.setStroke((int) (1f * density), isDarkMode ? Color.parseColor("#383532") : Color.parseColor("#E0D8CB"));
+            root.setBackground(cardBg);
+
+            tvFile.setText(r.fileName);
+            tvFile.setTextColor(accentColor());
+            tvHits.setText(r.hitCount + " 处");
+            tvHits.setTextColor(textSecondaryColor());
+            tvSnippet.setText(r.snippet);
+            tvSnippet.setTextColor(textPrimaryColor());
+
+            if (paperTypeface != null) {
+                tvFile.setTypeface(paperTypeface, Typeface.BOLD);
+                tvSnippet.setTypeface(paperTypeface);
             }
             return convertView;
         }
