@@ -90,6 +90,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private View btnSave;
     private View btnSearch;
     private View btnBookmark;
+    private View btnAddBookmarkTop;
     private View btnMore;
     private View viewBookmarkDot;
     private ImageView ivBookmarkIcon;
@@ -295,6 +296,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         listOutline = findViewById(R.id.list_outline);
         tvEmptyOutline = findViewById(R.id.tv_empty_outline);
         btnCloseOutline = findViewById(R.id.btn_close_outline);
+
+        btnAddBookmarkTop = findViewById(R.id.btn_add_bookmark_top);
 
         btnSearch = findViewById(R.id.btn_search);
         btnBookmark = findViewById(R.id.btn_bookmark);
@@ -617,6 +620,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             folderSearchBg.setStroke((int) (1f * density), colorBorder);
             etFolderSearch.setBackground(folderSearchBg);
             ivBookmarkIcon.setColorFilter(colorTextPrimary);
+            ((ImageView) findViewById(R.id.btn_add_bookmark_top)).setColorFilter(colorAccent);
             ((ImageView) findViewById(R.id.iv_search_icon)).setColorFilter(colorTextPrimary);
             ((ImageView) findViewById(R.id.iv_more_icon)).setColorFilter(colorTextPrimary);
             ((ImageView) findViewById(R.id.iv_outline_icon)).setColorFilter(colorTextPrimary);
@@ -879,6 +883,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             public void onClick(View v) {
                 hideControlsMenu(false);
                 toggleOutlinePanel();
+            }
+        });
+
+        // 顶栏书签按钮：一键把当前阅读位置加入书签
+        btnAddBookmarkTop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideControlsMenu(false);
+                addBookmarkAtCurrentPosition();
             }
         });
 
@@ -1930,9 +1943,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 + "2. 点击 **大纲**：右侧滑出章节目录抽屉，直达重点；\n"
                 + "3. 点击 **目录**：左侧滑出文稿与子目录浏览器；\n"
                 + "4. 点击 **搜索**：下拉搜索条，输入即找，上下箭头逐处跳转；\n"
-                + "5. 点击 **书签**：夹住当前页，或在文件夹里跨文档查找；\n"
-                + "6. 点击 **朗读**：启停智能有声朗读；\n"
-                + "7. 点击 **更多**：切换夜间/日间、保存文档、进入编辑模式。\n\n"
+                + "5. 点击顶栏 **书签按钮**：一键把当前页加入书签，最省事；\n"
+                + "6. 点击 **书签**：查看全部书签，或在文件夹里跨文档查找；\n"
+                + "7. 点击 **朗读**：启停智能有声朗读；\n"
+                + "8. 点击 **更多**：切换夜间/日间、保存文档、进入编辑模式。\n\n"
                 + "---\n\n"
                 + "祝您阅读与书写愉快！";
 

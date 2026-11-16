@@ -391,6 +391,17 @@
             android:textColor="@color/paper_accent"
             android:textSize="11.5sp"
             android:background="@drawable/bg_quick_key" />
+
+        <!-- 顶栏书签按钮：一键把当前阅读位置加入书签 -->
+        <ImageView
+            android:id="@+id/btn_add_bookmark_top"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_bookmark_add"
+            android:background="@drawable/bg_btn_icon"
+            android:contentDescription="加入书签" />
     </LinearLayout>
 
     <!-- 下拉搜索卡片（从顶栏下方展开） -->
