@@ -463,20 +463,6 @@
                 android:background="@drawable/bg_btn_icon"
                 android:contentDescription="搜索文档" />
 
-            <TextView
-                android:id="@+id/btn_change_folder"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="9dp"
-                android:paddingEnd="9dp"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
-                android:text="目录"
-                android:textColor="@color/paper_accent"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:background="@drawable/bg_quick_key" />
-
             <ImageView
                 android:id="@+id/btn_new_file"
                 android:layout_width="34dp"
@@ -558,6 +544,7 @@
                     android:id="@+id/cb_file_recursive"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:checked="true"
                     android:text="含子目录"
                     android:textSize="12sp"
                     android:textColor="@color/paper_text_secondary"

@@ -312,7 +312,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvCurrentDir = findViewById(R.id.tv_current_dir);
         listFiles = findViewById(R.id.list_files);
         tvEmptyFiles = findViewById(R.id.tv_empty_files);
-        btnChangeFolder = findViewById(R.id.btn_change_folder);
+        btnChangeFolder = null; // 「目录」按钮已移除
         btnNewFile = findViewById(R.id.btn_new_file);
         btnGoUp = findViewById(R.id.btn_go_up);
         tvGoUpLabel = findViewById(R.id.tv_go_up_label);
@@ -591,7 +591,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         panelFileHeader.setBackgroundColor(colorSurfaceVariant);
         tvPanelFileTitle.setTextColor(colorTextPrimary);
         tvCurrentDir.setTextColor(colorTextSecondary);
-        btnChangeFolder.setTextColor(colorAccent);
+        if (btnChangeFolder != null) btnChangeFolder.setTextColor(colorAccent);
         if (tvGoUpLabel != null) {
             tvGoUpLabel.setTextColor(colorAccent);
         }
@@ -1028,12 +1028,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             }
         });
 
-        btnChangeFolder.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                pickFolder();
-            }
-        });
+        if (btnChangeFolder != null) {
+            btnChangeFolder.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    pickFolder();
+                }
+            });
+        }
 
         btnNewFile.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1533,62 +1535,42 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void showBookmarkOptions(final Bookmark bm) {
         final String[] items = new String[]{"跳到此处", "重命名", "删除"};
-        new AlertDialog.Builder(this)
-                .setTitle(bm.title)
-                .setItems(items, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) {
-                            jumpToBookmark(bm);
-                        } else if (which == 1) {
-                            renameBookmark(bm);
-                        } else {
-                            confirmDeleteBookmark(bm);
-                        }
-                    }
-                })
-                .show();
+        showPaperMenu(bm.title, items, new PaperMenuCallback() {
+            @Override
+            public void onItem(int index) {
+                if (index == 0) {
+                    jumpToBookmark(bm);
+                } else if (index == 1) {
+                    renameBookmark(bm);
+                } else {
+                    confirmDeleteBookmark(bm);
+                }
+            }
+        });
     }
 
     private void renameBookmark(final Bookmark bm) {
-        final EditText input = new EditText(this);
-        input.setText(bm.title);
-        input.setSelection(input.getText().length());
-        input.setSingleLine(true);
-        input.setPadding(48, 32, 48, 32);
-        input.setTextColor(textPrimaryColor());
-        new AlertDialog.Builder(this)
-                .setTitle("重命名书签")
-                .setView(input)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String newTitle = input.getText().toString().trim();
-                        if (newTitle.isEmpty()) return;
-                        bm.title = newTitle;
-                        persistBookmarks();
-                        refreshBookmarkList();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        showPaperInput("重命名书签", "给书签起个好记的名字", bm.title, new PaperInputCallback() {
+            @Override
+            public void onConfirm(String text) {
+                if (text.isEmpty()) return;
+                bm.title = text;
+                persistBookmarks();
+                refreshBookmarkList();
+            }
+        });
     }
 
     private void confirmDeleteBookmark(final Bookmark bm) {
-        new AlertDialog.Builder(this)
-                .setTitle("删除书签")
-                .setMessage("确定删除「" + bm.title + "」吗？")
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        allBookmarks.remove(bm);
-                        persistBookmarks();
-                        refreshBookmarkList();
-                        Toast.makeText(MainActivity.this, "已删除书签", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        showPaperConfirm("删除书签", "确定删除「" + bm.title + "」吗？", "删除", new Runnable() {
+            @Override
+            public void run() {
+                allBookmarks.remove(bm);
+                persistBookmarks();
+                refreshBookmarkList();
+                Toast.makeText(MainActivity.this, "已删除书签", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void refreshBookmarkList() {
@@ -1808,11 +1790,23 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         });
     }
 
-    /** 在当前目录（可选递归子目录）内搜索文件名，可选搜正文 */
+    /** 在当前目录（可选递归子目录）内搜索文件名，可选搜正文；实时枚举不依赖缓存 */
     private List<FoundDoc> scanFilesForKeyword(String keyword, boolean recursive, boolean searchContent) {
         List<FoundDoc> all = new ArrayList<>();
-        collectFoundDocs(all, recursive, 600);
-        String lk = keyword.toLowerCase();
+        // 实时枚举，保证拿到最新磁盘状态
+        if (currentTreeUri != null && safRootTreeUri != null) {
+            String rootDocId = (safCurrentDocId != null) ? safCurrentDocId
+                    : DocumentsContract.getTreeDocumentId(safRootTreeUri);
+            collectSafFromDocId(rootDocId, "", all, recursive, 0, 3000);
+        } else if (currentDirectory != null) {
+            collectLocalDocs(currentDirectory, "", all, recursive, 0, 3000);
+        }
+        // 兜底：实时枚举为空时退回目录缓存列表
+        if (all.isEmpty()) {
+            collectFoundDocs(all, recursive, 3000);
+        }
+
+        String lk = keyword.toLowerCase().trim();
         List<FoundDoc> hits = new ArrayList<>();
         for (FoundDoc fd : all) {
             if (hits.size() >= MAX_SEARCH_RESULTS) break;
@@ -1828,6 +1822,45 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             }
         }
         return hits;
+    }
+
+    /** 从 SAF 某个目录 docId 开始枚举文档（含子目录时可递归） */
+    private void collectSafFromDocId(String dirDocId, String prefix, List<FoundDoc> out,
+                                     boolean recursive, int depth, int limit) {
+        if (depth > 6 || out.size() >= limit || safRootTreeUri == null || dirDocId == null) return;
+        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(safRootTreeUri, dirDocId);
+        try {
+            Cursor cursor = getContentResolver().query(childrenUri, new String[]{
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_SIZE,
+                    DocumentsContract.Document.COLUMN_LAST_MODIFIED
+            }, null, null, null);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    if (out.size() >= limit) break;
+                    String childDocId = cursor.getString(0);
+                    String name = cursor.getString(1);
+                    String mime = cursor.getString(2);
+                    long size = cursor.getLong(3);
+                    long lastModified = cursor.getLong(4);
+                    if (name == null) continue;
+                    Uri childUri = DocumentsContract.buildDocumentUriUsingTree(safRootTreeUri, childDocId);
+                    boolean isDir = mime != null && mime.equals(DocumentsContract.Document.MIME_TYPE_DIR);
+                    if (isDir) {
+                        if (recursive && !shouldSkipDir(name)) {
+                            collectSafFromDocId(childDocId, prefix + "/" + name, out, recursive, depth + 1, limit);
+                        }
+                    } else if (isMarkdownName(name)) {
+                        out.add(new FoundDoc(new FileItem(name, childUri, childDocId, size, lastModified, false), prefix));
+                    }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /** 从当前目录真实列表出发，收集文档（含子目录时可递归） */
@@ -1846,6 +1879,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     }
 
+    /** 搜索时跳过这些无关大目录，避免拖慢/占满结果 */
+    private boolean shouldSkipDir(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        return n.equals("node_modules") || n.equals(".git") || n.equals(".cache")
+                || n.equals(".gradle") || n.equals(".idea") || n.equals("build")
+                || n.equals("gen") || n.equals("bin") || n.equals(".svn") || n.equals("dist");
+    }
+
     private void collectLocalDocs(File dir, String prefix, List<FoundDoc> out, boolean recursive, int depth, int limit) {
         if (depth > 6 || out.size() >= limit) return;
         File[] files = dir.listFiles();
@@ -1853,7 +1895,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         for (File f : files) {
             if (out.size() >= limit) return;
             if (f.isDirectory()) {
-                if (recursive) {
+                if (recursive && !shouldSkipDir(f.getName())) {
                     collectLocalDocs(f, prefix + "/" + f.getName(), out, recursive, depth + 1, limit);
                 }
             } else if (isMarkdownName(f.getName())) {
@@ -2108,31 +2150,185 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     // ==================== 更多菜单 ====================
 
+    // ==================== 纸张风格通用弹窗 ====================
+
+    private interface PaperMenuCallback { void onItem(int index); }
+    private interface PaperInputCallback { void onConfirm(String text); }
+
+    /** 纸张风格选项菜单 */
+    private void showPaperMenu(String title, String[] items, final PaperMenuCallback cb) {
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_paper_menu, null);
+        TextView tvTitle = view.findViewById(R.id.dlg_title);
+        tvTitle.setText(title);
+        tvTitle.setTextColor(accentColor());
+        if (paperTypeface != null) tvTitle.setTypeface(paperTypeface, Typeface.BOLD);
+        LinearLayout container = view.findViewById(R.id.dlg_items);
+
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(view).create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        float d = getResources().getDisplayMetrics().density;
+        for (int i = 0; i < items.length; i++) {
+            final int idx = i;
+            TextView row = new TextView(this);
+            row.setText(items[i]);
+            row.setTextSize(15);
+            row.setTextColor(textPrimaryColor());
+            row.setPadding((int) (16 * d), (int) (13 * d), (int) (16 * d), (int) (13 * d));
+            row.setBackgroundResource(R.drawable.bg_dialog_item);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, 0, (int) (7 * d));
+            row.setLayoutParams(lp);
+            if (paperTypeface != null) row.setTypeface(paperTypeface);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    dialog.dismiss();
+                    cb.onItem(idx);
+                }
+            });
+            container.addView(row);
+        }
+        dialog.show();
+    }
+
+    /** 纸张风格输入弹窗 */
+    private void showPaperInput(String title, String hint, String defaultText, final PaperInputCallback cb) {
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_paper_input, null);
+        TextView tvTitle = view.findViewById(R.id.dlg_input_title);
+        tvTitle.setText(title);
+        tvTitle.setTextColor(accentColor());
+        if (paperTypeface != null) tvTitle.setTypeface(paperTypeface, Typeface.BOLD);
+
+        final EditText edit = view.findViewById(R.id.dlg_input_edit);
+        edit.setHint(hint);
+        edit.setTextColor(textPrimaryColor());
+        edit.setHintTextColor(textSecondaryColor());
+        if (paperTypeface != null) edit.setTypeface(paperTypeface);
+        if (defaultText != null) {
+            edit.setText(defaultText);
+            edit.setSelection(edit.getText().length());
+        }
+
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(view).create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        view.findViewById(R.id.dlg_input_ok).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String t = edit.getText().toString().trim();
+                dialog.dismiss();
+                cb.onConfirm(t);
+            }
+        });
+        view.findViewById(R.id.dlg_input_cancel).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+            }
+        });
+        dialog.show();
+        edit.requestFocus();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        }
+    }
+
+    /** 纸张风格确认弹窗 */
+    private void showPaperConfirm(String title, final String message, String confirmText, final Runnable onConfirm) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundResource(R.drawable.bg_dialog_paper);
+        root.setPadding((int) (18 * d), (int) (16 * d), (int) (18 * d), (int) (14 * d));
+
+        TextView tvTitle = new TextView(this);
+        tvTitle.setText(title);
+        tvTitle.setTextColor(accentColor());
+        tvTitle.setTextSize(16);
+        tvTitle.setTypeface(paperTypeface != null ? paperTypeface : Typeface.DEFAULT_BOLD, Typeface.BOLD);
+        root.addView(tvTitle);
+
+        TextView tvMsg = new TextView(this);
+        tvMsg.setText(message);
+        tvMsg.setTextColor(textPrimaryColor());
+        tvMsg.setTextSize(14);
+        LinearLayout.LayoutParams mLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mLp.topMargin = (int) (12 * d);
+        mLp.bottomMargin = (int) (16 * d);
+        tvMsg.setLayoutParams(mLp);
+        if (paperTypeface != null) tvMsg.setTypeface(paperTypeface);
+        root.addView(tvMsg);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.END);
+
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        TextView cancel = new TextView(this);
+        cancel.setText("取消");
+        cancel.setTextColor(textSecondaryColor());
+        cancel.setTextSize(14);
+        cancel.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), (int) (8 * d));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) { dialog.dismiss(); }
+        });
+        row.addView(cancel);
+
+        TextView ok = new TextView(this);
+        ok.setText(confirmText);
+        ok.setTextColor(accentColor());
+        ok.setTextSize(14);
+        ok.setTypeface(paperTypeface != null ? paperTypeface : Typeface.DEFAULT_BOLD, Typeface.BOLD);
+        ok.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), (int) (8 * d));
+        ok.setBackgroundResource(R.drawable.bg_quick_key);
+        LinearLayout.LayoutParams okLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        okLp.leftMargin = (int) (8 * d);
+        ok.setLayoutParams(okLp);
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+                if (onConfirm != null) onConfirm.run();
+            }
+        });
+        row.addView(ok);
+
+        root.addView(row);
+        dialog.show();
+    }
+
     private void showMoreMenu() {
         final String[] items = new String[]{
-                isDarkMode ? "切换为日间宣纸" : "切换为夜间墨色",
-                "保存当前文档",
-                isEditMode ? "完成阅读" : "进入编辑模式"
+                isDarkMode ? "☀  切换为日间宣纸" : "🌙  切换为夜间墨色",
+                "💾  保存当前文档",
+                isEditMode ? "📖  完成阅读" : "✏  进入编辑模式"
         };
-        new AlertDialog.Builder(this)
-                .setTitle("更多")
-                .setItems(items, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) {
-                            hideControlsMenu(false);
-                            toggleTheme();
-                        } else if (which == 1) {
-                            hideControlsMenu(false);
-                            saveCurrentFile(true);
-                        } else {
-                            hideControlsMenu(false);
-                            toggleMode();
-                        }
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        showPaperMenu("更多", items, new PaperMenuCallback() {
+            @Override
+            public void onItem(int index) {
+                if (index == 0) {
+                    hideControlsMenu(false);
+                    toggleTheme();
+                } else if (index == 1) {
+                    hideControlsMenu(false);
+                    saveCurrentFile(true);
+                } else {
+                    hideControlsMenu(false);
+                    toggleMode();
+                }
+            }
+        });
     }
 
     private int accentColor() {
@@ -2703,29 +2899,17 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void showCreateFileDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("新建笔记");
-
-        final EditText input = new EditText(this);
-        input.setHint("例如：读书笔记.md");
-        input.setText("新笔记.md");
-        input.setSelection(0, 3);
-        input.setPadding(40, 30, 40, 30);
-        builder.setView(input);
-
-        builder.setPositiveButton("创建", new DialogInterface.OnClickListener() {
+        showPaperInput("新建笔记", "例如：读书笔记.md", "新笔记.md", new PaperInputCallback() {
             @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String name = input.getText().toString().trim();
-                if (name.isEmpty()) return;
+            public void onConfirm(String text) {
+                if (text.isEmpty()) return;
+                String name = text;
                 if (!name.endsWith(".md")) {
                     name += ".md";
                 }
                 createNewFile(name);
             }
         });
-        builder.setNegativeButton("取消", null);
-        builder.show();
     }
 
     private void createNewFile(String name) {
