@@ -113,6 +113,21 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private View maskOverlay;
     private LinearLayout panelFileList;
     private View panelFileHeader;
+    // 目录面板内的文档搜索
+    private ImageView btnFileSearch;
+    private LinearLayout layoutFileSearch;
+    private LinearLayout layoutFileBreadcrumb;
+    private EditText etFileSearch;
+    private CheckBox cbFileRecursive;
+    private CheckBox cbFileContent;
+    private TextView tvFileSearchHint;
+    private ImageView btnFileSearchClose;
+    private boolean isFileSearchMode = false;
+    private Runnable pendingFileSearch = null;
+    /** 当前目录的真实列表（退出搜索时用于恢复） */
+    private final List<FileItem> dirItemList = new ArrayList<>();
+    /** 搜索模式下与 fileItemList 平行的文件夹路径（空串表示当前目录） */
+    private final List<String> fileSearchPaths = new ArrayList<>();
     private TextView tvPanelFileTitle;
     private TextView tvCurrentDir;
     private ListView listFiles;
@@ -231,6 +246,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setupListeners();
         setupSearchUi();
         setupBookmarkUi();
+        setupFileSearchUi();
         loadBookmarks();
         initTtsEngine();
 
@@ -284,6 +300,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         maskOverlay = findViewById(R.id.mask_overlay);
         panelFileList = findViewById(R.id.panel_file_list);
         panelFileHeader = findViewById(R.id.panel_file_header);
+        btnFileSearch = findViewById(R.id.btn_file_search);
+        layoutFileSearch = findViewById(R.id.layout_file_search);
+        layoutFileBreadcrumb = findViewById(R.id.layout_file_breadcrumb);
+        etFileSearch = findViewById(R.id.et_file_search);
+        cbFileRecursive = findViewById(R.id.cb_file_recursive);
+        cbFileContent = findViewById(R.id.cb_file_content);
+        tvFileSearchHint = findViewById(R.id.tv_file_search_hint);
+        btnFileSearchClose = findViewById(R.id.btn_file_search_close);
         tvPanelFileTitle = findViewById(R.id.tv_panel_file_title);
         tvCurrentDir = findViewById(R.id.tv_current_dir);
         listFiles = findViewById(R.id.list_files);
@@ -570,6 +594,18 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         btnChangeFolder.setTextColor(colorAccent);
         if (tvGoUpLabel != null) {
             tvGoUpLabel.setTextColor(colorAccent);
+        }
+
+        // 目录面板搜索条
+        if (layoutFileSearch != null) {
+            layoutFileSearch.setBackgroundColor(colorSurface);
+            etFileSearch.setTextColor(colorTextPrimary);
+            etFileSearch.setHintTextColor(colorTextSecondary);
+            tvFileSearchHint.setTextColor(colorTextSecondary);
+            cbFileRecursive.setTextColor(colorTextSecondary);
+            cbFileContent.setTextColor(colorTextSecondary);
+            layoutFileBreadcrumb.setBackgroundColor(colorSurface);
+            btnFileSearch.setColorFilter(colorAccent);
         }
 
         // 9. 大纲面板 (右侧抽屉)
@@ -1009,12 +1045,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         listFiles.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position < 0 || position >= fileItemList.size()) return;
                 FileItem item = fileItemList.get(position);
                 if (item.isDirectory) {
                     // 进入子目录
                     enterDirectory(item);
                 } else {
                     stopTts();
+                    if (isFileSearchMode) {
+                        closeFileSearch();
+                    }
                     loadFile(item);
                     hideFileListPanel();
                 }
@@ -1614,6 +1654,252 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         return sdf.format(new java.util.Date(time));
     }
 
+    // ==================== 文稿目录内的文档搜索 ====================
+
+    /** 目录搜索命中项：文档 + 所在文件夹（相对当前目录，空串表示当前目录） */
+    private static class FoundDoc {
+        final FileItem item;
+        final String folderPath;
+        FoundDoc(FileItem item, String folderPath) {
+            this.item = item;
+            this.folderPath = folderPath;
+        }
+    }
+
+    private void setupFileSearchUi() {
+        if (btnFileSearch == null) return;
+
+        btnFileSearch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isFileSearchMode) {
+                    closeFileSearch();
+                } else {
+                    openFileSearch();
+                }
+            }
+        });
+
+        btnFileSearchClose.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                closeFileSearch();
+            }
+        });
+
+        etFileSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                scheduleFileSearch(s.toString());
+            }
+        });
+
+        etFileSearch.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, android.view.KeyEvent event) {
+                performFileSearch(etFileSearch.getText().toString());
+                return true;
+            }
+        });
+
+        View.OnClickListener redo = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                performFileSearch(etFileSearch.getText().toString());
+            }
+        };
+        cbFileRecursive.setOnClickListener(redo);
+        cbFileContent.setOnClickListener(redo);
+    }
+
+    private void openFileSearch() {
+        isFileSearchMode = true;
+        layoutFileSearch.setVisibility(View.VISIBLE);
+        layoutFileBreadcrumb.setVisibility(View.GONE);
+        etFileSearch.requestFocus();
+        etFileSearch.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(etFileSearch, InputMethodManager.SHOW_IMPLICIT);
+            }
+        }, 120);
+    }
+
+    /** 退出搜索：清空条件、恢复当前目录列表 */
+    private void closeFileSearch() {
+        if (!isFileSearchMode) return;
+        isFileSearchMode = false;
+        if (pendingFileSearch != null) {
+            searchHandler.removeCallbacks(pendingFileSearch);
+            pendingFileSearch = null;
+        }
+        layoutFileSearch.setVisibility(View.GONE);
+        layoutFileBreadcrumb.setVisibility(View.VISIBLE);
+        etFileSearch.setText("");
+        etFileSearch.clearFocus();
+        tvFileSearchHint.setText("");
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(etFileSearch.getWindowToken(), 0);
+
+        fileSearchPaths.clear();
+        fileItemList.clear();
+        fileItemList.addAll(dirItemList);
+        if (fileAdapter != null) fileAdapter.notifyDataSetChanged();
+        tvEmptyFiles.setText("🍃 该目录下暂无 Markdown 文档");
+        tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
+        updateGoUpButton();
+    }
+
+    private void scheduleFileSearch(final String keyword) {
+        if (pendingFileSearch != null) {
+            searchHandler.removeCallbacks(pendingFileSearch);
+        }
+        pendingFileSearch = new Runnable() {
+            @Override
+            public void run() {
+                performFileSearch(keyword);
+            }
+        };
+        searchHandler.postDelayed(pendingFileSearch, 200);
+    }
+
+    private void performFileSearch(final String keyword) {
+        final String kw = keyword == null ? "" : keyword.trim();
+        if (kw.isEmpty()) {
+            // 清空输入即回到目录列表
+            fileSearchPaths.clear();
+            fileItemList.clear();
+            fileItemList.addAll(dirItemList);
+            if (fileAdapter != null) fileAdapter.notifyDataSetChanged();
+            tvFileSearchHint.setText("");
+            tvEmptyFiles.setText("🍃 该目录下暂无 Markdown 文档");
+            tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
+            return;
+        }
+
+        final boolean recursive = cbFileRecursive.isChecked();
+        final boolean searchContent = cbFileContent.isChecked();
+        tvFileSearchHint.setText("查找中…");
+
+        searchExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                final List<FoundDoc> found = scanFilesForKeyword(kw, recursive, searchContent);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isFileSearchMode) return; // 期间已关闭搜索
+                        fileSearchPaths.clear();
+                        fileItemList.clear();
+                        for (FoundDoc fd : found) {
+                            fileItemList.add(fd.item);
+                            fileSearchPaths.add(fd.folderPath);
+                        }
+                        if (fileAdapter != null) fileAdapter.notifyDataSetChanged();
+                        tvFileSearchHint.setText("共 " + found.size() + " 篇");
+                        tvEmptyFiles.setText("没有找到匹配「" + kw + "」的文档");
+                        tvEmptyFiles.setVisibility(found.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 在当前目录（可选递归子目录）内搜索文件名，可选搜正文 */
+    private List<FoundDoc> scanFilesForKeyword(String keyword, boolean recursive, boolean searchContent) {
+        List<FoundDoc> all = new ArrayList<>();
+        collectFoundDocs(all, recursive, 600);
+        String lk = keyword.toLowerCase();
+        List<FoundDoc> hits = new ArrayList<>();
+        for (FoundDoc fd : all) {
+            if (hits.size() >= MAX_SEARCH_RESULTS) break;
+            if (fd.item.name != null && fd.item.name.toLowerCase().contains(lk)) {
+                hits.add(fd);
+                continue;
+            }
+            if (searchContent) {
+                String content = readDocContent(fd.item);
+                if (content != null && content.toLowerCase().contains(lk)) {
+                    hits.add(fd);
+                }
+            }
+        }
+        return hits;
+    }
+
+    /** 从当前目录真实列表出发，收集文档（含子目录时可递归） */
+    private void collectFoundDocs(List<FoundDoc> out, boolean recursive, int limit) {
+        for (FileItem it : dirItemList) {
+            if (out.size() >= limit) return;
+            if (!it.isDirectory) {
+                out.add(new FoundDoc(it, ""));
+            } else if (recursive) {
+                if (it.uri != null) {
+                    collectSafDocs(it, it.name, out, recursive, 1, limit);
+                } else if (it.path != null) {
+                    collectLocalDocs(new File(it.path), it.name, out, recursive, 1, limit);
+                }
+            }
+        }
+    }
+
+    private void collectLocalDocs(File dir, String prefix, List<FoundDoc> out, boolean recursive, int depth, int limit) {
+        if (depth > 6 || out.size() >= limit) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (out.size() >= limit) return;
+            if (f.isDirectory()) {
+                if (recursive) {
+                    collectLocalDocs(f, prefix + "/" + f.getName(), out, recursive, depth + 1, limit);
+                }
+            } else if (isMarkdownName(f.getName())) {
+                out.add(new FoundDoc(new FileItem(f), prefix));
+            }
+        }
+    }
+
+    private void collectSafDocs(FileItem dirItem, String prefix, List<FoundDoc> out, boolean recursive, int depth, int limit) {
+        if (depth > 6 || out.size() >= limit || safRootTreeUri == null || dirItem.docId == null) return;
+        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(safRootTreeUri, dirItem.docId);
+        try {
+            Cursor cursor = getContentResolver().query(childrenUri, new String[]{
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_SIZE,
+                    DocumentsContract.Document.COLUMN_LAST_MODIFIED
+            }, null, null, null);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    if (out.size() >= limit) break;
+                    String childDocId = cursor.getString(0);
+                    String name = cursor.getString(1);
+                    String mime = cursor.getString(2);
+                    long size = cursor.getLong(3);
+                    long lastModified = cursor.getLong(4);
+                    if (name == null) continue;
+                    Uri childUri = DocumentsContract.buildDocumentUriUsingTree(safRootTreeUri, childDocId);
+                    boolean isDir = mime != null && mime.equals(DocumentsContract.Document.MIME_TYPE_DIR);
+                    if (isDir) {
+                        if (recursive) {
+                            FileItem sub = new FileItem(name, childUri, childDocId, 0, lastModified, true);
+                            collectSafDocs(sub, prefix + "/" + name, out, recursive, depth + 1, limit);
+                        }
+                    } else if (isMarkdownName(name)) {
+                        out.add(new FoundDoc(new FileItem(name, childUri, childDocId, size, lastModified, false), prefix));
+                    }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     // ==================== 文件夹内全文查找 ====================
 
     /** 跨文档搜索结果模型 */
@@ -1696,7 +1982,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void collectDocItems(List<FileItem> out, boolean recursive, int depth) {
         if (depth > 6) return;
-        for (FileItem item : new ArrayList<>(fileItemList)) {
+        for (FileItem item : new ArrayList<>(dirItemList)) {
             if (!item.isDirectory) {
                 out.add(item);
             } else if (recursive) {
@@ -1915,6 +2201,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 + "- **日夜模式**：一键切换温润宣纸与夜间墨色，暗光更舒适；\n"
                 + "- **语音朗读**：轻点「朗读」享受贴心语音朗读，舒缓双眼；\n"
                 + "- **子目录浏览**：支持进入与返回任意层级子目录浏览 Markdown；\n"
+                + "- **目录搜索**：文稿目录标题栏点放大镜，按文件名跨文件夹找文档，直接显示所在文件夹；\n"
                 + "- **全文搜索**：轻点「搜索」下拉即用的紧凑搜索条，实时高亮并逐个跳转命中处；\n"
                 + "- **书签夹页**：轻点「书签」夹住当前位置，随时翻回，还能在文件夹里跨文档查找；\n"
                 + "- **即刻编辑**：随时在阅读与编辑模式间无缝切换，附带便捷 Markdown 输入栏。\n\n"
@@ -2003,6 +2290,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             fileItemList.addAll(dirs);
             fileItemList.addAll(docs);
         }
+        syncDirItemList();
 
         String label = dir.getName() + "  (含 " + fileItemList.size() + " 项)";
         tvCurrentDir.setText(label);
@@ -2026,6 +2314,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 .putString(KEY_CURRENT_DIR, dir.getAbsolutePath())
                 .remove(KEY_SAF_TREE_URI)
                 .apply();
+    }
+
+    /** 把当前 fileItemList 复制为真实目录列表（供退出搜索时恢复） */
+    private void syncDirItemList() {
+        dirItemList.clear();
+        dirItemList.addAll(fileItemList);
+        fileSearchPaths.clear();
     }
 
     private void updateGoUpButton() {
@@ -2119,6 +2414,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         });
         fileItemList.addAll(dirs);
         fileItemList.addAll(docs);
+        syncDirItemList();
 
         fileAdapter.notifyDataSetChanged();
         tvEmptyFiles.setVisibility(fileItemList.isEmpty() ? View.VISIBLE : View.GONE);
@@ -2469,6 +2765,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             hideFileListPanel();
         } else {
             hideOutlinePanel();
+            if (isFileSearchMode) {
+                closeFileSearch();
+            }
             panelFileList.setVisibility(View.VISIBLE);
             maskOverlay.setVisibility(View.VISIBLE);
             Animation slideIn = new TranslateAnimation(
@@ -2612,6 +2911,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if (panelFileList.getVisibility() == View.VISIBLE) {
+            if (isFileSearchMode) {
+                closeFileSearch();
+                return;
+            }
             hideFileListPanel();
             return;
         }
@@ -2803,7 +3106,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             badgeBg.setCornerRadius(8 * density);
             layoutBadge.setBackground(badgeBg);
 
-            if (item.isDirectory) {
+            if (isFileSearchMode && position < fileSearchPaths.size()) {
+                // 搜索模式：重点显示文档所在的文件夹，方便定位
+                String folder = fileSearchPaths.get(position);
+                String where = (folder == null || folder.trim().isEmpty()) ? "当前目录" : folder;
+                ivIcon.setImageResource(R.drawable.ic_file_doc);
+                ivIcon.setColorFilter(colorAccent);
+                tvInfo.setText("📁 " + where + "  ·  " + item.getFormattedSize());
+            } else if (item.isDirectory) {
                 ivIcon.setImageResource(R.drawable.ic_folder);
                 ivIcon.setColorFilter(colorAccent);
                 tvInfo.setText(item.getFormattedDate() + "  ·  文件夹");

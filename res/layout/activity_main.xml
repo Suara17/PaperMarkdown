@@ -454,15 +454,24 @@
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
+            <ImageView
+                android:id="@+id/btn_file_search"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:padding="7dp"
+                android:src="@drawable/ic_search"
+                android:background="@drawable/bg_btn_icon"
+                android:contentDescription="搜索文档" />
+
             <TextView
                 android:id="@+id/btn_change_folder"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
+                android:paddingStart="9dp"
+                android:paddingEnd="9dp"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="切换目录"
+                android:text="目录"
                 android:textColor="@color/paper_accent"
                 android:textSize="12sp"
                 android:textStyle="bold"
@@ -485,8 +494,101 @@
             android:layout_height="1dp"
             android:background="@color/paper_border" />
 
+        <!-- 文档搜索条（点标题栏放大镜展开） -->
+        <LinearLayout
+            android:id="@+id/layout_file_search"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:paddingStart="12dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="6dp"
+            android:background="@color/paper_surface">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_search"
+                    android:alpha="0.55"
+                    android:contentDescription="搜索" />
+
+                <EditText
+                    android:id="@+id/et_file_search"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:hint="搜索文件名，跨文件夹查找…"
+                    android:textColor="@color/paper_text_primary"
+                    android:textColorHint="@color/paper_text_secondary"
+                    android:textSize="14sp"
+                    android:singleLine="true"
+                    android:imeOptions="actionSearch|flagNoExtractUi"
+                    android:inputType="text"
+                    android:importantForAutofill="no" />
+
+                <ImageView
+                    android:id="@+id/btn_file_search_close"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_close"
+                    android:background="@drawable/bg_btn_icon"
+                    android:contentDescription="关闭搜索" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
+
+                <CheckBox
+                    android:id="@+id/cb_file_recursive"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="含子目录"
+                    android:textSize="12sp"
+                    android:textColor="@color/paper_text_secondary"
+                    android:buttonTint="@color/paper_accent" />
+
+                <CheckBox
+                    android:id="@+id/cb_file_content"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="搜正文"
+                    android:textSize="12sp"
+                    android:textColor="@color/paper_text_secondary"
+                    android:buttonTint="@color/paper_accent" />
+
+                <TextView
+                    android:id="@+id/tv_file_search_hint"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="end"
+                    android:text=""
+                    android:textColor="@color/paper_text_secondary"
+                    android:textSize="11sp"
+                    android:singleLine="true" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- 路径面包屑与返回上级条 -->
         <LinearLayout
+            android:id="@+id/layout_file_breadcrumb"
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:orientation="horizontal"
