@@ -291,32 +291,72 @@
                 android:textSize="9sp" />
         </LinearLayout>
 
-        <!-- 隐藏锚点控件：主题 / 编辑 / 保存由「更多」菜单统一调度 -->
+        <!-- 操作按钮：主题 / 编辑 / 保存，可由用户分配到轮盘、更多或隐藏 -->
         <LinearLayout
             android:id="@+id/btn_theme_toggle"
-            android:layout_width="1dp"
-            android:layout_height="1dp"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_icon"
             android:visibility="gone">
-            <ImageView android:id="@+id/iv_theme_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_mode_night" />
-            <TextView android:id="@+id/tv_theme_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="夜间" />
+            <ImageView
+                android:id="@+id/iv_theme_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_mode_night" />
+            <TextView
+                android:id="@+id/tv_theme_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="夜间"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="9sp" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/btn_toggle_mode"
-            android:layout_width="1dp"
-            android:layout_height="1dp"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_icon"
             android:visibility="gone">
-            <ImageView android:id="@+id/iv_edit_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_edit" />
-            <TextView android:id="@+id/tv_edit_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="编辑" />
+            <ImageView
+                android:id="@+id/iv_edit_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_edit" />
+            <TextView
+                android:id="@+id/tv_edit_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="编辑"
+                android:textColor="@color/paper_text_primary"
+                android:textSize="9sp" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/btn_save"
-            android:layout_width="1dp"
-            android:layout_height="1dp"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_icon"
             android:visibility="gone">
-            <ImageView android:id="@+id/iv_save_icon" android:layout_width="1dp" android:layout_height="1dp" android:src="@drawable/ic_save" />
-            <TextView android:id="@+id/tv_save_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="保存" />
+            <ImageView
+                android:id="@+id/iv_save_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_save" />
+            <TextView
+                android:id="@+id/tv_save_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="保存"
+                android:textColor="@color/paper_accent"
+                android:textSize="9sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
     </FrameLayout>
