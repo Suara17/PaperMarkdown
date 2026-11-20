@@ -69,6 +69,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String KEY_SAF_TREE_URI = "saf_tree_uri";
     private static final String KEY_DARK_MODE = "key_dark_mode";
     private static final String KEY_STATS_ENABLED = "key_stats_enabled";
+    private static final String KEY_WHEEL_VISIBLE = "wheel_visible_keys";
+    private static final String[] WHEEL_KEYS = {"files", "search", "outline", "bookmark", "tts", "more"};
+    private static final String[] WHEEL_LABELS = {"目录", "搜索", "大纲", "书签", "朗读", "更多"};
     private static final String KEY_BOOKMARKS = "bookmarks_v1";
     private static final int MAX_SEARCH_RESULTS = 80;
 
@@ -174,6 +177,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private ListView listFolderResults;
     private TextView tvEmptyFolderResults;
 
+    // 轮盘按钮显示配置
+    private final java.util.Set<String> wheelVisibleKeys = new java.util.HashSet<>();
+
     // 书签数据
     /** 全量书签（持久化的唯一数据源，跨文档） */
     private final List<Bookmark> allBookmarks = new ArrayList<>();
@@ -247,6 +253,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setupSearchUi();
         setupBookmarkUi();
         setupFileSearchUi();
+        loadWheelVisible();
         loadBookmarks();
         initTtsEngine();
 
@@ -428,12 +435,79 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     }
 
+    // ==================== 轮盘按钮显示配置 ====================
+
+    private void loadWheelVisible() {
+        wheelVisibleKeys.clear();
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String json = sp.getString(KEY_WHEEL_VISIBLE, null);
+        if (json != null && json.trim().startsWith("[")) {
+            try {
+                JSONArray arr = new JSONArray(json);
+                for (int i = 0; i < arr.length(); i++) {
+                    String k = arr.optString(i);
+                    if (k != null && !k.trim().isEmpty()) wheelVisibleKeys.add(k.trim());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        if (wheelVisibleKeys.isEmpty()) {
+            for (String k : WHEEL_KEYS) wheelVisibleKeys.add(k); // 默认全部显示
+        }
+    }
+
+    private void persistWheelVisible() {
+        JSONArray arr = new JSONArray();
+        for (String k : WHEEL_KEYS) {
+            if (wheelVisibleKeys.contains(k)) arr.put(k);
+        }
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(KEY_WHEEL_VISIBLE, arr.toString())
+                .apply();
+    }
+
+    private boolean isWheelVisible(String key) {
+        return wheelVisibleKeys.contains(key);
+    }
+
+    /** 把可见的轮盘按钮按数量均匀分布在圆周上，隐藏的不留空位 */
+    private void applyWheelLayout() {
+        View[] views = {btnFilesDrawer, btnSearch, btnOutline, btnBookmark, btnTts, btnMore};
+        List<View> shown = new ArrayList<>();
+        for (int i = 0; i < views.length; i++) {
+            if (views[i] == null) continue;
+            if (isWheelVisible(WHEEL_KEYS[i])) {
+                views[i].setVisibility(View.VISIBLE);
+                shown.add(views[i]);
+            } else {
+                views[i].setVisibility(View.GONE);
+            }
+        }
+        if (shown.isEmpty()) return;
+
+        float density = getResources().getDisplayMetrics().density;
+        float cx = (154f / 2f) * density;
+        float cy = (154f / 2f) * density;
+        float radius = 52f * density;
+        int n = shown.size();
+        for (int i = 0; i < n; i++) {
+            View btn = shown.get(i);
+            double angle = (-90 + i * (360.0 / n)) * Math.PI / 180.0;
+            float bx = (float) (cx + radius * Math.cos(angle));
+            float by = (float) (cy + radius * Math.sin(angle));
+            btn.setX(bx - (46f * density) / 2f);
+            btn.setY(by - (40f * density) / 2f);
+        }
+    }
+
     private void showControlsMenu(boolean animate) {
         if (isControlsMenuVisible) return;
         isControlsMenuVisible = true;
 
         appBar.setVisibility(View.VISIBLE);
         wheelMenu.setVisibility(View.VISIBLE);
+        applyWheelLayout();
 
         if (animate) {
             Animation fadeIn = new AlphaAnimation(0f, 1f);
@@ -2308,11 +2382,160 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         dialog.show();
     }
 
+    /** 轮盘按钮自定义弹窗：勾选显示，取消勾选收纳，实时生效并持久化 */
+    private void showWheelSettingsDialog() {
+        final float density = getResources().getDisplayMetrics().density;
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundResource(R.drawable.bg_dialog_paper);
+        root.setPadding((int) (18 * density), (int) (16 * density), (int) (18 * density), (int) (14 * density));
+
+        TextView tvTitle = new TextView(this);
+        tvTitle.setText("轮盘按钮");
+        tvTitle.setTextColor(accentColor());
+        tvTitle.setTextSize(16);
+        tvTitle.setTypeface(paperTypeface != null ? paperTypeface : Typeface.DEFAULT_BOLD, Typeface.BOLD);
+        root.addView(tvTitle);
+
+        TextView tvTip = new TextView(this);
+        tvTip.setText("勾选的显示在轮盘上，取消勾选即收纳");
+        tvTip.setTextColor(textSecondaryColor());
+        tvTip.setTextSize(12);
+        LinearLayout.LayoutParams tipLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tipLp.topMargin = (int) (10 * density);
+        tipLp.bottomMargin = (int) (14 * density);
+        tvTip.setLayoutParams(tipLp);
+        root.addView(tvTip);
+
+        int[] icons = {
+                R.drawable.ic_folder, R.drawable.ic_search, R.drawable.ic_toc,
+                R.drawable.ic_bookmark, R.drawable.ic_speaker, R.drawable.ic_more
+        };
+
+        final List<CheckBox> boxes = new ArrayList<>();
+        for (int i = 0; i < WHEEL_KEYS.length; i++) {
+            final String key = WHEEL_KEYS[i];
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(0, 0, 0, 0);
+
+            ImageView iv = new ImageView(this);
+            iv.setLayoutParams(new LinearLayout.LayoutParams(
+                    (int) (24 * density), (int) (24 * density)));
+            iv.setPadding((int) (2 * density), 0, (int) (8 * density), 0);
+            iv.setImageResource(icons[i]);
+            iv.setColorFilter(accentColor());
+            row.addView(iv);
+
+            TextView label = new TextView(this);
+            label.setText(WHEEL_LABELS[i]);
+            label.setTextColor(textPrimaryColor());
+            label.setTextSize(15);
+            if (paperTypeface != null) label.setTypeface(paperTypeface);
+            LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            row.addView(label);
+
+            CheckBox cb = new CheckBox(this);
+            cb.setChecked(isWheelVisible(key));
+            cb.setTextColor(textPrimaryColor());
+            cb.setTextSize(14);
+            cb.setButtonTintList(android.content.res.ColorStateList.valueOf(accentColor()));
+            cb.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    boolean checked = cb.isChecked();
+                    if (checked) wheelVisibleKeys.add(key);
+                    else wheelVisibleKeys.remove(key);
+                    persistWheelVisible();
+                    applyWheelLayout();
+                }
+            });
+            row.addView(cb);
+
+            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowLp.bottomMargin = (int) (6 * density);
+            row.setLayoutParams(rowLp);
+            root.addView(row);
+            boxes.add(cb);
+        }
+
+        // 快捷操作
+        LinearLayout quick = new LinearLayout(this);
+        quick.setOrientation(LinearLayout.HORIZONTAL);
+        quick.setGravity(android.view.Gravity.END);
+        LinearLayout.LayoutParams quickLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        quickLp.topMargin = (int) (10 * density);
+        quick.setLayoutParams(quickLp);
+
+        quick.addView(makeQuickBtn("全部显示", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                wheelVisibleKeys.clear();
+                for (String k : WHEEL_KEYS) wheelVisibleKeys.add(k);
+                persistWheelVisible();
+                applyWheelLayout();
+                syncWheelBoxes(boxes);
+            }
+        }, density));
+        quick.addView(makeQuickBtn("全部收纳", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                wheelVisibleKeys.clear();
+                persistWheelVisible();
+                applyWheelLayout();
+                syncWheelBoxes(boxes);
+            }
+        }, density));
+        quick.addView(makeQuickBtn("恢复默认", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                wheelVisibleKeys.clear();
+                for (String k : WHEEL_KEYS) wheelVisibleKeys.add(k);
+                persistWheelVisible();
+                applyWheelLayout();
+                syncWheelBoxes(boxes);
+            }
+        }, density));
+        root.addView(quick);
+
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        dialog.show();
+    }
+
+    private View makeQuickBtn(String text, final View.OnClickListener listener, float density) {
+        TextView btn = new TextView(this);
+        btn.setText(text);
+        btn.setTextColor(textSecondaryColor());
+        btn.setTextSize(13);
+        if (paperTypeface != null) btn.setTypeface(paperTypeface);
+        btn.setPadding((int) (14 * density), (int) (6 * density), (int) (14 * density), (int) (6 * density));
+        btn.setBackgroundResource(R.drawable.bg_quick_key);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = (int) (8 * density);
+        btn.setLayoutParams(lp);
+        btn.setOnClickListener(listener);
+        return btn;
+    }
+
+    private void syncWheelBoxes(List<CheckBox> boxes) {
+        for (int i = 0; i < boxes.size() && i < WHEEL_KEYS.length; i++) {
+            boxes.get(i).setChecked(isWheelVisible(WHEEL_KEYS[i]));
+        }
+    }
+
     private void showMoreMenu() {
         final String[] items = new String[]{
                 isDarkMode ? "☀  切换为日间宣纸" : "🌙  切换为夜间墨色",
                 "💾  保存当前文档",
-                isEditMode ? "📖  完成阅读" : "✏  进入编辑模式"
+                isEditMode ? "📖  完成阅读" : "✏  进入编辑模式",
+                "⚙  轮盘按钮设置"
         };
         showPaperMenu("更多", items, new PaperMenuCallback() {
             @Override
@@ -2323,6 +2546,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 } else if (index == 1) {
                     hideControlsMenu(false);
                     saveCurrentFile(true);
+                } else if (index == 3) {
+                    showWheelSettingsDialog();
                 } else {
                     hideControlsMenu(false);
                     toggleMode();
