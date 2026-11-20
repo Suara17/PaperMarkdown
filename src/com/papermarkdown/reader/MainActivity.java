@@ -2444,9 +2444,18 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             cb.setTextColor(textPrimaryColor());
             cb.setTextSize(14);
             cb.setButtonTintList(android.content.res.ColorStateList.valueOf(accentColor()));
+            // 「更多」是设置入口，不可收纳，保证随时能恢复配置
+            if ("more".equals(key)) {
+                cb.setEnabled(false);
+                label.setText("更多（入口）");
+            }
             cb.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    if (!cb.isEnabled()) {
+                        cb.setChecked(true); // 入口按钮强制保持显示
+                        return;
+                    }
                     boolean checked = cb.isChecked();
                     if (checked) wheelVisibleKeys.add(key);
                     else wheelVisibleKeys.remove(key);
@@ -2485,6 +2494,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         quick.addView(makeQuickBtn("全部收纳", new View.OnClickListener() {
             @Override public void onClick(View v) {
                 wheelVisibleKeys.clear();
+                wheelVisibleKeys.add("more"); // 保留设置入口，避免无法恢复配置
                 persistWheelVisible();
                 applyWheelLayout();
                 syncWheelBoxes(boxes);
