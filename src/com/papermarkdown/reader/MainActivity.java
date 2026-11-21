@@ -71,15 +71,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String KEY_DARK_MODE = "key_dark_mode";
     private static final String KEY_STATS_ENABLED = "key_stats_enabled";
     private static final String KEY_WHEEL_VISIBLE = "wheel_visible_keys";
-    private static final String[] WHEEL_KEYS = {"files", "search", "outline", "bookmark", "tts", "more"};
-    private static final String[] WHEEL_LABELS = {"目录", "搜索", "大纲", "书签", "朗读", "更多"};
-    // 操作项（主题/保存/编辑）的归属：wheel=轮盘、more=更多菜单、hidden=隐藏
-    private static final String KEY_ACTION_PLACEMENT = "action_placement";
-    private static final String PLACE_WHEEL = "wheel";
-    private static final String PLACE_MORE = "more";
-    private static final String PLACE_HIDDEN = "hidden";
-    private static final String[] ACTION_KEYS = {"theme", "save", "mode"};
-    private static final String[] ACTION_LABELS = {"切换日夜", "保存文档", "编辑模式"};
+    // 统一列表：固定按钮 + 快捷操作，全部用同一套勾选显示 / 取消收纳
+    private static final String[] WHEEL_KEYS = {
+            "files", "search", "outline", "bookmark", "tts", "more", "theme", "save", "mode"};
+    private static final String[] WHEEL_LABELS = {
+            "目录", "搜索", "大纲", "书签", "朗读", "更多", "切换日夜", "保存", "编辑"};
+    private static final int[] WHEEL_ICONS = {
+            R.drawable.ic_folder, R.drawable.ic_search, R.drawable.ic_toc,
+            R.drawable.ic_bookmark, R.drawable.ic_speaker, R.drawable.ic_more,
+            R.drawable.ic_mode_night, R.drawable.ic_save, R.drawable.ic_edit};
     private static final String KEY_BOOKMARKS = "bookmarks_v1";
     private static final int MAX_SEARCH_RESULTS = 80;
 
@@ -185,10 +185,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private ListView listFolderResults;
     private TextView tvEmptyFolderResults;
 
-    // 轮盘按钮显示配置
+    // 轮盘按钮显示配置（固定按钮 + 快捷操作统一管理）
     private final java.util.Set<String> wheelVisibleKeys = new java.util.HashSet<>();
-    // 操作项归属配置（主题/保存/编辑 -> 轮盘/更多/隐藏）
-    private final java.util.Map<String, String> actionPlacement = new java.util.HashMap<>();
     private AlertDialog currentWheelDialog;
 
     // 书签数据
@@ -265,7 +263,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setupBookmarkUi();
         setupFileSearchUi();
         loadWheelVisible();
-        loadActionPlacement();
         loadBookmarks();
         initTtsEngine();
 
@@ -479,78 +476,24 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 .apply();
     }
 
-    // 操作项归属读写（主题/保存/编辑 -> 轮盘/更多/隐藏）
-    private void loadActionPlacement() {
-        actionPlacement.clear();
-        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String json = sp.getString(KEY_ACTION_PLACEMENT, null);
-        if (json != null && json.trim().startsWith("{")) {
-            try {
-                JSONObject obj = new JSONObject(json);
-                for (String k : ACTION_KEYS) {
-                    String v = obj.optString(k, PLACE_MORE);
-                    if (v != null) actionPlacement.put(k, v);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        for (String k : ACTION_KEYS) {
-            if (!actionPlacement.containsKey(k)) actionPlacement.put(k, PLACE_MORE); // 默认放更多
-        }
-    }
-
-    private void persistActionPlacement() {
-        JSONObject obj = new JSONObject();
-        for (String k : ACTION_KEYS) {
-            try {
-                obj.put(k, actionPlacement.get(k));
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
-                .putString(KEY_ACTION_PLACEMENT, obj.toString())
-                .apply();
-    }
-
-    private String getActionPlace(String key) {
-        String v = actionPlacement.get(key);
-        return v != null ? v : PLACE_MORE;
-    }
-
     private boolean isWheelVisible(String key) {
         return wheelVisibleKeys.contains(key);
     }
 
     /** 把可见的轮盘按钮按数量均匀分布在圆周上，隐藏的不留空位 */
     private void applyWheelLayout() {
+        View[] views = {btnFilesDrawer, btnSearch, btnOutline, btnBookmark, btnTts, btnMore,
+                btnThemeToggle, btnSave, btnToggleMode};
         List<View> shown = new ArrayList<>();
-
-        // 固定按钮
-        View[] fixed = {btnFilesDrawer, btnSearch, btnOutline, btnBookmark, btnTts, btnMore};
-        for (int i = 0; i < fixed.length; i++) {
-            if (fixed[i] == null) continue;
+        for (int i = 0; i < views.length; i++) {
+            if (views[i] == null) continue;
             if (isWheelVisible(WHEEL_KEYS[i])) {
-                fixed[i].setVisibility(View.VISIBLE);
-                shown.add(fixed[i]);
+                views[i].setVisibility(View.VISIBLE);
+                shown.add(views[i]);
             } else {
-                fixed[i].setVisibility(View.GONE);
+                views[i].setVisibility(View.GONE);
             }
         }
-
-        // 操作按钮：只有归属为「轮盘」的才显示
-        View[] actions = {btnThemeToggle, btnSave, btnToggleMode};
-        for (int i = 0; i < actions.length; i++) {
-            if (actions[i] == null) continue;
-            if (PLACE_WHEEL.equals(getActionPlace(ACTION_KEYS[i]))) {
-                actions[i].setVisibility(View.VISIBLE);
-                shown.add(actions[i]);
-            } else {
-                actions[i].setVisibility(View.GONE);
-            }
-        }
-
         if (shown.isEmpty()) return;
 
         float density = getResources().getDisplayMetrics().density;
@@ -2513,11 +2456,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         tvTip.setLayoutParams(tipLp);
         root.addView(tvTip);
 
-        int[] icons = {
-                R.drawable.ic_folder, R.drawable.ic_search, R.drawable.ic_toc,
-                R.drawable.ic_bookmark, R.drawable.ic_speaker, R.drawable.ic_more
-        };
-
         final List<CheckBox> boxes = new ArrayList<>();
         for (int i = 0; i < WHEEL_KEYS.length; i++) {
             final String key = WHEEL_KEYS[i];
@@ -2530,7 +2468,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             iv.setLayoutParams(new LinearLayout.LayoutParams(
                     (int) (24 * density), (int) (24 * density)));
             iv.setPadding((int) (2 * density), 0, (int) (8 * density), 0);
-            iv.setImageResource(icons[i]);
+            iv.setImageResource(WHEEL_ICONS[i]);
             iv.setColorFilter(accentColor());
             row.addView(iv);
 
@@ -2575,88 +2513,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             row.setLayoutParams(rowLp);
             root.addView(row);
             boxes.add(cb);
-        }
-
-        // ===== 快捷操作归属：轮盘 / 更多 / 隐藏 =====
-        View div = new View(this);
-        LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density));
-        divLp.topMargin = (int) (14 * density);
-        divLp.bottomMargin = (int) (10 * density);
-        div.setLayoutParams(divLp);
-        div.setBackgroundColor(isDarkMode ? Color.parseColor("#33302D") : Color.parseColor("#E2DBD0"));
-        root.addView(div);
-
-        TextView tvActionTitle = new TextView(this);
-        tvActionTitle.setText("快捷操作归属");
-        tvActionTitle.setTextColor(accentColor());
-        tvActionTitle.setTextSize(14);
-        tvActionTitle.setTypeface(paperTypeface != null ? paperTypeface : Typeface.DEFAULT_BOLD, Typeface.BOLD);
-        LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tLp.bottomMargin = (int) (8 * density);
-        tvActionTitle.setLayoutParams(tLp);
-        root.addView(tvActionTitle);
-
-        final int[] actionIcons = {R.drawable.ic_mode_night, R.drawable.ic_save, R.drawable.ic_edit};
-        final String[] places = {PLACE_WHEEL, PLACE_MORE, PLACE_HIDDEN};
-        final String[] placeLabels = {"轮盘", "更多", "隐藏"};
-
-        for (int i = 0; i < ACTION_KEYS.length; i++) {
-            final String key = ACTION_KEYS[i];
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-
-            ImageView iv = new ImageView(this);
-            iv.setLayoutParams(new LinearLayout.LayoutParams(
-                    (int) (24 * density), (int) (24 * density)));
-            iv.setPadding((int) (2 * density), 0, (int) (8 * density), 0);
-            iv.setImageResource(actionIcons[i]);
-            iv.setColorFilter(accentColor());
-            row.addView(iv);
-
-            TextView label = new TextView(this);
-            label.setText(ACTION_LABELS[i]);
-            label.setTextColor(textPrimaryColor());
-            label.setTextSize(15);
-            if (paperTypeface != null) label.setTypeface(paperTypeface);
-            LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            row.addView(label);
-
-            for (int j = 0; j < places.length; j++) {
-                final String place = places[j];
-                TextView btn = new TextView(this);
-                btn.setText(placeLabels[j]);
-                btn.setTextSize(13);
-                boolean active = getActionPlace(key).equals(place);
-                btn.setTextColor(active ? accentColor() : textSecondaryColor());
-                btn.setTypeface(paperTypeface != null ? paperTypeface : Typeface.DEFAULT_BOLD,
-                        active ? Typeface.BOLD : Typeface.NORMAL);
-                btn.setPadding((int) (10 * density), (int) (5 * density), (int) (10 * density), (int) (5 * density));
-                if (active) btn.setBackgroundResource(R.drawable.bg_quick_key);
-                LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                bLp.leftMargin = (int) (4 * density);
-                btn.setLayoutParams(bLp);
-                btn.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        actionPlacement.put(key, place);
-                        persistActionPlacement();
-                        applyWheelLayout();
-                        showWheelSettingsDialog(); // 重建弹窗刷新高亮
-                    }
-                });
-                row.addView(btn);
-            }
-
-            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            rowLp.bottomMargin = (int) (6 * density);
-            row.setLayoutParams(rowLp);
-            root.addView(row);
         }
 
         // 快捷操作
@@ -2728,31 +2584,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void showMoreMenu() {
-        // 动态生成：只包含归属为「更多」的操作，末尾附「轮盘按钮设置」
-        List<String> items = new ArrayList<>();
-        final List<String> keys = new ArrayList<>();
-        for (int i = 0; i < ACTION_KEYS.length; i++) {
-            if (PLACE_MORE.equals(getActionPlace(ACTION_KEYS[i]))) {
-                items.add(ACTION_LABELS[i]);
-                keys.add(ACTION_KEYS[i]);
-            }
-        }
-        items.add("⚙  轮盘按钮设置");
-
-        showPaperMenu("更多", items.toArray(new String[0]), new PaperMenuCallback() {
+        // 统一后「更多」只保留设置入口；快捷操作通过轮盘勾选控制显示
+        showPaperMenu("更多", new String[]{"⚙  轮盘按钮设置"}, new PaperMenuCallback() {
             @Override
             public void onItem(int index) {
-                if (index < keys.size()) {
-                    hideControlsMenu(false);
-                    runAction(keys.get(index));
-                } else {
-                    showWheelSettingsDialog();
-                }
+                showWheelSettingsDialog();
             }
         });
     }
 
-    /** 执行操作（主题/保存/编辑），供「更多」菜单与轮盘按钮共用 */
+    /** 执行操作（主题/保存/编辑），供轮盘上的操作按钮点击调用 */
     private void runAction(String key) {
         if ("theme".equals(key)) {
             toggleTheme();
